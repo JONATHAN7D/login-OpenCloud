@@ -85,12 +85,27 @@ node "$installRoot\dist\cli.mjs" @args
 "@
 Set-Content -Path $psWrapperPath -Value $psWrapperContent -Encoding ASCII
 
+$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+if ([string]::IsNullOrWhiteSpace($userPath)) {
+  $newUserPath = $bunBinDir
+} elseif ($userPath -split ';' -notcontains $bunBinDir) {
+  $newUserPath = ($userPath.TrimEnd(';') + ';' + $bunBinDir)
+} else {
+  $newUserPath = $userPath
+}
+[Environment]::SetEnvironmentVariable('Path', $newUserPath, 'User')
+
+if ($env:Path -split ';' -notcontains $bunBinDir) {
+  $env:Path = $env:Path + ';' + $bunBinDir
+}
+
 Remove-Item -Recurse -Force $tempRoot
 
 Write-Host ''
 Write-Host 'OpenClaude installed successfully.'
 Write-Host "Install directory: $installRoot"
 Write-Host "Launchers: $wrapperPath, $psWrapperPath"
+Write-Host "PATH updated with: $bunBinDir"
 Write-Host ''
 Write-Host 'If the `login-opencloud` command is not recognized yet, close PowerShell, open it again, and run:'
 Write-Host '  login-opencloud'
