@@ -24,7 +24,11 @@ Use OpenAI-compatible APIs, Gemini, GitHub Models, Codex, Ollama, Atomic Chat, a
 
 ### Install From This Repository
 
-Private repository install on Windows with GitHub CLI:
+Recommended flow for this repository when it is private on GitHub:
+
+1. Install GitHub CLI: `https://cli.github.com/`
+2. Open a new PowerShell window
+3. Run:
 
 ```powershell
 gh auth login
@@ -32,14 +36,30 @@ gh repo clone JONATHAN7D/login-OpenCloud "$HOME\.login-opencloud"
 powershell -ExecutionPolicy Bypass -File "$HOME\.login-opencloud\scripts\install-private.ps1"
 ```
 
-After the private install finishes:
+After the private install finishes, start the CLI with:
 
 ```powershell
 login-opencloud
+```
+
+Update the private install with:
+
+```powershell
 login-opencloud-update
 ```
 
-Use this private flow when the GitHub repository is not public.
+If PowerShell still does not recognize the commands after installation, close every terminal window and open a new one. If it still does not refresh, use the launcher paths directly:
+
+```powershell
+& "$HOME\.bun\bin\login-opencloud.ps1"
+& "$HOME\.bun\bin\login-opencloud-update.ps1"
+```
+
+Use the private flow above when this GitHub repository is not public.
+
+### Public Repository Installers
+
+These one-line installers only work when the GitHub repository is public.
 
 Windows PowerShell:
 
@@ -68,7 +88,9 @@ What these installers do:
 - run `bun run build`
 - create a `login-opencloud` launcher for future runs
 
-### Install From npm
+### Upstream npm Package
+
+This is the upstream OpenClaude package, not the private `JONATHAN7D/login-OpenCloud` repository build:
 
 ```bash
 npm install -g @gitlawb/openclaude
@@ -80,6 +102,24 @@ If the install later reports `ripgrep not found`, install ripgrep system-wide an
 
 ```bash
 login-opencloud
+```
+
+Windows fallback if the terminal has not refreshed yet:
+
+```powershell
+& "$HOME\.bun\bin\login-opencloud.ps1"
+```
+
+### Update
+
+```powershell
+login-opencloud-update
+```
+
+Windows fallback if the terminal has not refreshed yet:
+
+```powershell
+& "$HOME\.bun\bin\login-opencloud-update.ps1"
 ```
 
 Inside OpenClaude:
