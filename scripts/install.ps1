@@ -72,19 +72,25 @@ if (-not $?) {
 $bunBinDir = Split-Path -Parent $bunPath
 New-Item -ItemType Directory -Force -Path $bunBinDir | Out-Null
 
-$wrapperPath = Join-Path $bunBinDir 'openclaude.cmd'
+$wrapperPath = Join-Path $bunBinDir 'login-opencloud.cmd'
 $wrapperContent = @"
 @echo off
 node "$installRoot\dist\cli.mjs" %*
 "@
 Set-Content -Path $wrapperPath -Value $wrapperContent -Encoding ASCII
 
+$psWrapperPath = Join-Path $bunBinDir 'login-opencloud.ps1'
+$psWrapperContent = @"
+node "$installRoot\dist\cli.mjs" @args
+"@
+Set-Content -Path $psWrapperPath -Value $psWrapperContent -Encoding ASCII
+
 Remove-Item -Recurse -Force $tempRoot
 
 Write-Host ''
 Write-Host 'OpenClaude installed successfully.'
 Write-Host "Install directory: $installRoot"
-Write-Host "Launcher: $wrapperPath"
+Write-Host "Launchers: $wrapperPath, $psWrapperPath"
 Write-Host ''
-Write-Host 'If the `openclaude` command is not recognized yet, close PowerShell, open it again, and run:'
-Write-Host '  openclaude'
+Write-Host 'If the `login-opencloud` command is not recognized yet, close PowerShell, open it again, and run:'
+Write-Host '  login-opencloud'

@@ -23,9 +23,16 @@ npm --version
 irm https://raw.githubusercontent.com/JONATHAN7D/login-OpenCloud/main/scripts/install.ps1 | iex
 ```
 
-This installer downloads the current `main` branch, installs Bun if needed, builds the project, and creates the `openclaude` command for future runs.
+This installer downloads the current `main` branch, installs Bun if needed, builds the project, and creates the `login-opencloud` command for future runs.
 
-### Option B: npm package
+### Option B: Clone and install locally
+
+```powershell
+git clone https://github.com/JONATHAN7D/login-OpenCloud.git
+powershell -ExecutionPolicy Bypass -File ".\login-OpenCloud\scripts\install.ps1"
+```
+
+### Option C: npm package
 
 ```powershell
 npm install -g @gitlawb/openclaude
@@ -42,7 +49,7 @@ $env:CLAUDE_CODE_USE_OPENAI="1"
 $env:OPENAI_API_KEY="sk-your-key-here"
 $env:OPENAI_MODEL="gpt-4o"
 
-openclaude
+login-opencloud
 ```
 
 ### Option B: DeepSeek
@@ -53,7 +60,7 @@ $env:OPENAI_API_KEY="sk-your-key-here"
 $env:OPENAI_BASE_URL="https://api.deepseek.com/v1"
 $env:OPENAI_MODEL="deepseek-chat"
 
-openclaude
+login-opencloud
 ```
 
 ### Option C: Ollama
@@ -71,7 +78,7 @@ $env:CLAUDE_CODE_USE_OPENAI="1"
 $env:OPENAI_BASE_URL="http://localhost:11434/v1"
 $env:OPENAI_MODEL="llama3.1:8b"
 
-openclaude
+login-opencloud
 ```
 
 No API key is needed for Ollama local models.
@@ -96,19 +103,19 @@ $env:OPENAI_BASE_URL="http://localhost:1234/v1"
 $env:OPENAI_MODEL="your-model-name"
 # $env:OPENAI_API_KEY="lmstudio"  # optional: some users need a dummy key
 
-openclaude
+login-opencloud
 ```
 
 Replace `your-model-name` with the model name shown in LM Studio.
 
 No API key is needed for LM Studio local models (but uncomment the `OPENAI_API_KEY` line if you hit auth errors).
 
-## 4. If `openclaude` Is Not Found
+## 4. If `login-opencloud` Is Not Found
 
 Close PowerShell, open a new one, and try again:
 
 ```powershell
-openclaude
+login-opencloud
 ```
 
 ## 5. If Your Provider Fails

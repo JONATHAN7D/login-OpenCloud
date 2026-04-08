@@ -17,6 +17,21 @@ npm --version
 
 ## 2. Install OpenClaude
 
+### Option A: One-line installer from this GitHub repository
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JONATHAN7D/login-OpenCloud/main/scripts/install.sh | bash
+```
+
+### Option B: Clone and install locally
+
+```bash
+git clone https://github.com/JONATHAN7D/login-OpenCloud.git
+./login-OpenCloud/scripts/install.sh
+```
+
+### Option C: npm package
+
 ```bash
 npm install -g @gitlawb/openclaude
 ```
@@ -32,7 +47,7 @@ export CLAUDE_CODE_USE_OPENAI=1
 export OPENAI_API_KEY=sk-your-key-here
 export OPENAI_MODEL=gpt-4o
 
-openclaude
+login-opencloud
 ```
 
 ### Option B: DeepSeek
@@ -43,7 +58,7 @@ export OPENAI_API_KEY=sk-your-key-here
 export OPENAI_BASE_URL=https://api.deepseek.com/v1
 export OPENAI_MODEL=deepseek-chat
 
-openclaude
+login-opencloud
 ```
 
 ### Option C: Ollama
@@ -61,7 +76,7 @@ export CLAUDE_CODE_USE_OPENAI=1
 export OPENAI_BASE_URL=http://localhost:11434/v1
 export OPENAI_MODEL=llama3.1:8b
 
-openclaude
+login-opencloud
 ```
 
 No API key is needed for Ollama local models.
@@ -86,19 +101,19 @@ export OPENAI_BASE_URL=http://localhost:1234/v1
 export OPENAI_MODEL=your-model-name
 # export OPENAI_API_KEY=lmstudio  # optional: some users need a dummy key
 
-openclaude
+login-opencloud
 ```
 
 Replace `your-model-name` with the model name shown in LM Studio.
 
 No API key is needed for LM Studio local models (but uncomment the `OPENAI_API_KEY` line if you hit auth errors).
 
-## 4. If `openclaude` Is Not Found
+## 4. If `login-opencloud` Is Not Found
 
 Close the terminal, open a new one, and try again:
 
 ```bash
-openclaude
+login-opencloud
 ```
 
 ## 5. If Your Provider Fails

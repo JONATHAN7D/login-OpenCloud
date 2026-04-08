@@ -36,13 +36,20 @@ macOS / Linux:
 curl -fsSL https://raw.githubusercontent.com/JONATHAN7D/login-OpenCloud/main/scripts/install.sh | bash
 ```
 
+Short local install after cloning this repository:
+
+```powershell
+git clone https://github.com/JONATHAN7D/login-OpenCloud.git
+powershell -ExecutionPolicy Bypass -File ".\login-OpenCloud\scripts\install.ps1"
+```
+
 What these installers do:
 
 - download the latest `main` branch from this GitHub repo
 - install Bun if it is missing
 - run `bun install`
 - run `bun run build`
-- create an `openclaude` launcher for future runs
+- create a `login-opencloud` launcher for future runs
 
 ### Install From npm
 
@@ -55,7 +62,7 @@ If the install later reports `ripgrep not found`, install ripgrep system-wide an
 ### Start
 
 ```bash
-openclaude
+login-opencloud
 ```
 
 Inside OpenClaude:
@@ -73,7 +80,7 @@ export CLAUDE_CODE_USE_OPENAI=1
 export OPENAI_API_KEY=sk-your-key-here
 export OPENAI_MODEL=gpt-4o
 
-openclaude
+login-opencloud
 ```
 
 Windows PowerShell:
@@ -83,7 +90,7 @@ $env:CLAUDE_CODE_USE_OPENAI="1"
 $env:OPENAI_API_KEY="sk-your-key-here"
 $env:OPENAI_MODEL="gpt-4o"
 
-openclaude
+login-opencloud
 ```
 
 ### Fastest local Ollama setup
@@ -95,7 +102,7 @@ export CLAUDE_CODE_USE_OPENAI=1
 export OPENAI_BASE_URL=http://localhost:11434/v1
 export OPENAI_MODEL=qwen2.5-coder:7b
 
-openclaude
+login-opencloud
 ```
 
 Windows PowerShell:
@@ -105,7 +112,7 @@ $env:CLAUDE_CODE_USE_OPENAI="1"
 $env:OPENAI_BASE_URL="http://localhost:11434/v1"
 $env:OPENAI_MODEL="qwen2.5-coder:7b"
 
-openclaude
+login-opencloud
 ```
 
 ## Setup Guides

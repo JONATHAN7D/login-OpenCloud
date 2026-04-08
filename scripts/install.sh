@@ -61,12 +61,17 @@ echo "Building OpenClaude..."
 
 BIN_DIR="${HOME}/.local/bin"
 mkdir -p "$BIN_DIR"
-ln -sf "$INSTALL_ROOT/bin/openclaude" "$BIN_DIR/openclaude"
+
+cat > "$BIN_DIR/login-opencloud" <<EOF
+#!/usr/bin/env bash
+node "$INSTALL_ROOT/dist/cli.mjs" "\$@"
+EOF
+chmod +x "$BIN_DIR/login-opencloud"
 
 echo
 echo "OpenClaude installed successfully."
 echo "Install directory: $INSTALL_ROOT"
-echo "Launcher: $BIN_DIR/openclaude"
+echo "Launcher: $BIN_DIR/login-opencloud"
 echo
-echo "If \`openclaude\` is not found yet, add this to your shell profile:"
+echo "If \`login-opencloud\` is not found yet, add this to your shell profile:"
 echo "  export PATH=\"$BIN_DIR:\$PATH\""
