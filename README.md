@@ -24,6 +24,23 @@ Use OpenAI-compatible APIs, Gemini, GitHub Models, Codex, Ollama, Atomic Chat, a
 
 ### Install From This Repository
 
+Private repository install on Windows with GitHub CLI:
+
+```powershell
+gh auth login
+gh repo clone JONATHAN7D/login-OpenCloud "$HOME\.login-opencloud"
+powershell -ExecutionPolicy Bypass -File "$HOME\.login-opencloud\scripts\install-private.ps1"
+```
+
+After the private install finishes:
+
+```powershell
+login-opencloud
+login-opencloud-update
+```
+
+Use this private flow when the GitHub repository is not public.
+
 Windows PowerShell:
 
 ```powershell
