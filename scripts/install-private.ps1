@@ -7,6 +7,20 @@ function Get-CommandPathOrNull {
 
   $cmd = Get-Command $Name -ErrorAction SilentlyContinue
   if ($null -eq $cmd) {
+    if ($Name -eq 'gh') {
+      $fallback = Join-Path $env:LOCALAPPDATA 'Programs\GitHubCLI\bin\gh.exe'
+      if (Test-Path $fallback) {
+        return $fallback
+      }
+    }
+
+    if ($Name -eq 'bun') {
+      $fallback = Join-Path $HOME '.bun\bin\bun.exe'
+      if (Test-Path $fallback) {
+        return $fallback
+      }
+    }
+
     return $null
   }
 
@@ -36,16 +50,17 @@ if (-not (Get-CommandPathOrNull 'node')) {
   throw 'Node.js 20 or newer is required. Install it from https://nodejs.org/ and run this installer again.'
 }
 
-if (-not (Get-CommandPathOrNull 'gh')) {
+$ghPath = Get-CommandPathOrNull 'gh'
+if (-not $ghPath) {
   throw 'GitHub CLI is required for private installs. Install it from https://cli.github.com/ and run `gh auth login` first.'
 }
 
-& gh auth status *> $null
+& $ghPath auth status *> $null
 if ($LASTEXITCODE -ne 0) {
   throw 'GitHub CLI is not authenticated. Run `gh auth login` first and try again.'
 }
 
-& gh auth setup-git *> $null
+& $ghPath auth setup-git *> $null
 if ($LASTEXITCODE -ne 0) {
   throw 'GitHub CLI could not configure git credentials. Run `gh auth setup-git` manually and try again.'
 }
