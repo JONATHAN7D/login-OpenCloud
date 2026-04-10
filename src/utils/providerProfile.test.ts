@@ -12,6 +12,7 @@ import {
   buildLaunchEnv,
   buildOllamaProfileEnv,
   buildOpenAIProfileEnv,
+  buildQwenProfileEnv,
   createProfileFile,
   maskSecretForDisplay,
   loadProfileFile,
@@ -156,6 +157,22 @@ test('matching persisted gemini env is reused for gemini launch', async () => {
   assert.equal(env.GEMINI_BASE_URL, 'https://example.test/v1beta/openai')
 })
 
+test('matching persisted qwen env is reused for qwen launch', async () => {
+  const env = await buildLaunchEnv({
+    profile: 'qwen',
+    persisted: profile('qwen', {
+      OPENAI_MODEL: 'coder-model',
+    }),
+    goal: 'balanced',
+    processEnv: {},
+  })
+
+  assert.equal(env.CLAUDE_CODE_USE_QWEN, '1')
+  assert.equal(env.CLAUDE_CODE_USE_OPENAI, undefined)
+  assert.equal(env.OPENAI_MODEL, 'coder-model')
+  assert.equal(env.OPENAI_BASE_URL, undefined)
+})
+
 test('gemini launch ignores mismatched persisted openai env and strips other provider secrets', async () => {
   const env = await buildLaunchEnv({
     profile: 'gemini',
@@ -253,6 +270,14 @@ test('codex launch ignores mismatched persisted openai env', async () => {
   assert.equal(env.OPENAI_API_KEY, undefined)
   assert.equal(env.CODEX_API_KEY, 'codex-live')
   assert.equal(env.CHATGPT_ACCOUNT_ID, 'acct_live')
+})
+
+test('buildQwenProfileEnv defaults to coder-model', () => {
+  const env = buildQwenProfileEnv({
+    processEnv: {},
+  })
+
+  assert.equal(env.OPENAI_MODEL, 'coder-model')
 })
 
 test('codex launch ignores placeholder codex env keys', async () => {

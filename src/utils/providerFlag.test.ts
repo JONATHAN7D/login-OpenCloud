@@ -10,6 +10,7 @@ const originalEnv = { ...process.env }
 
 const RESET_KEYS = [
   'CLAUDE_CODE_USE_OPENAI',
+  'CLAUDE_CODE_USE_QWEN',
   'CLAUDE_CODE_USE_GEMINI',
   'CLAUDE_CODE_USE_GITHUB',
   'CLAUDE_CODE_USE_BEDROCK',
@@ -82,6 +83,19 @@ describe('applyProviderFlag - openai', () => {
   test('sets OPENAI_MODEL when --model is provided', () => {
     applyProviderFlag('openai', ['--model', 'gpt-4o'])
     expect(process.env.OPENAI_MODEL).toBe('gpt-4o')
+  })
+})
+
+describe('applyProviderFlag - qwen', () => {
+  test('sets CLAUDE_CODE_USE_QWEN=1', () => {
+    const result = applyProviderFlag('qwen', [])
+    expect(result.error).toBeUndefined()
+    expect(process.env.CLAUDE_CODE_USE_QWEN).toBe('1')
+  })
+
+  test('sets OPENAI_MODEL when --model is provided', () => {
+    applyProviderFlag('qwen', ['--model', 'coder-model'])
+    expect(process.env.OPENAI_MODEL).toBe('coder-model')
   })
 })
 

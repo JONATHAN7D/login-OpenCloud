@@ -27,6 +27,10 @@ import { resolveGeminiCredential } from '../../utils/geminiAuth.js'
 import { hydrateGeminiAccessTokenFromSecureStorage } from '../../utils/geminiCredentials.js'
 import { hydrateGithubModelsTokenFromSecureStorage } from '../../utils/githubModelsCredentials.js'
 import {
+  getValidQwenAccessContext,
+  primeQwenStoredCredentialsFromCliCache,
+} from '../../utils/qwenCredentials.js'
+import {
   codexStreamToAnthropic,
   collectCodexCompletedResponse,
   convertCodexResponseToAnthropicMessage,
@@ -54,6 +58,12 @@ type SecretValueSource = Partial<{
   GOOGLE_API_KEY: string
   GEMINI_ACCESS_TOKEN: string
 }>
+
+type RequestProviderOverride = {
+  model: string
+  baseURL: string
+  apiKey: string
+}
 
 const GITHUB_MODELS_DEFAULT_BASE = 'https://models.github.ai/inference'
 const GITHUB_API_VERSION = '2022-11-28'
@@ -920,9 +930,9 @@ class OpenAIShimStream {
 class OpenAIShimMessages {
   private defaultHeaders: Record<string, string>
   private reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh'
-  private providerOverride?: { model: string; baseURL: string; apiKey: string }
+  private providerOverride?: RequestProviderOverride
 
-  constructor(defaultHeaders: Record<string, string>, reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh', providerOverride?: { model: string; baseURL: string; apiKey: string }) {
+  constructor(defaultHeaders: Record<string, string>, reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh', providerOverride?: RequestProviderOverride) {
     this.defaultHeaders = defaultHeaders
     this.reasoningEffort = reasoningEffort
     this.providerOverride = providerOverride
@@ -937,8 +947,19 @@ class OpenAIShimMessages {
     let httpResponse: Response | undefined
 
     const promise = (async () => {
-      const request = resolveProviderRequest({ model: self.providerOverride?.model ?? params.model, baseUrl: self.providerOverride?.baseURL, reasoningEffortOverride: self.reasoningEffort })
-      const response = await self._doRequest(request, params, options)
+      const qwenContext = isEnvTruthy(process.env.CLAUDE_CODE_USE_QWEN)
+        ? await getValidQwenAccessContext({ model: params.model })
+        : null
+      const runtimeProviderOverride: RequestProviderOverride | undefined =
+        qwenContext
+          ? {
+              model: qwenContext.model,
+              baseURL: qwenContext.baseUrl,
+              apiKey: qwenContext.accessToken,
+            }
+          : self.providerOverride
+      const request = resolveProviderRequest({ model: runtimeProviderOverride?.model ?? params.model, baseUrl: runtimeProviderOverride?.baseURL, reasoningEffortOverride: self.reasoningEffort })
+      const response = await self._doRequest(request, params, options, runtimeProviderOverride)
       httpResponse = response
 
       if (params.stream) {
@@ -979,6 +1000,7 @@ class OpenAIShimMessages {
     request: ReturnType<typeof resolveProviderRequest>,
     params: ShimCreateParams,
     options?: { signal?: AbortSignal; headers?: Record<string, string> },
+    providerOverride?: RequestProviderOverride,
   ): Promise<Response> {
     if (request.transport === 'codex_responses') {
       const credentials = resolveCodexApiCredentials()
@@ -1011,13 +1033,14 @@ class OpenAIShimMessages {
       })
     }
 
-    return this._doOpenAIRequest(request, params, options)
+    return this._doOpenAIRequest(request, params, options, providerOverride)
   }
 
   private async _doOpenAIRequest(
     request: ReturnType<typeof resolveProviderRequest>,
     params: ShimCreateParams,
     options?: { signal?: AbortSignal; headers?: Record<string, string> },
+    providerOverride?: RequestProviderOverride,
   ): Promise<Response> {
     const openaiMessages = convertMessages(
       params.messages as Array<{
@@ -1098,7 +1121,7 @@ class OpenAIShimMessages {
 
     const isGemini = isGeminiMode()
     const apiKey =
-      this.providerOverride?.apiKey ?? process.env.OPENAI_API_KEY ?? ''
+      providerOverride?.apiKey ?? this.providerOverride?.apiKey ?? process.env.OPENAI_API_KEY ?? ''
     // Detect Azure endpoints by hostname (not raw URL) to prevent bypass via
     // path segments like https://evil.com/cognitiveservices.azure.com/
     let isAzure = false
@@ -1318,7 +1341,7 @@ class OpenAIShimBeta {
   messages: OpenAIShimMessages
   reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh'
 
-  constructor(defaultHeaders: Record<string, string>, reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh', providerOverride?: { model: string; baseURL: string; apiKey: string }) {
+  constructor(defaultHeaders: Record<string, string>, reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh', providerOverride?: RequestProviderOverride) {
     this.messages = new OpenAIShimMessages(defaultHeaders, reasoningEffort, providerOverride)
     this.reasoningEffort = reasoningEffort
   }
@@ -1329,10 +1352,11 @@ export function createOpenAIShimClient(options: {
   maxRetries?: number
   timeout?: number
   reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh'
-  providerOverride?: { model: string; baseURL: string; apiKey: string }
+  providerOverride?: RequestProviderOverride
 }): unknown {
   hydrateGeminiAccessTokenFromSecureStorage()
   hydrateGithubModelsTokenFromSecureStorage()
+  primeQwenStoredCredentialsFromCliCache()
 
   // When Gemini provider is active, map Gemini env vars to OpenAI-compatible ones
   // so the existing providerConfig.ts infrastructure picks them up correctly.
@@ -1352,6 +1376,8 @@ export function createOpenAIShimClient(options: {
     process.env.OPENAI_BASE_URL ??= GITHUB_MODELS_DEFAULT_BASE
     process.env.OPENAI_API_KEY ??=
       process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? ''
+  } else if (isEnvTruthy(process.env.CLAUDE_CODE_USE_QWEN)) {
+    process.env.OPENAI_MODEL ??= 'coder-model'
   }
 
   const beta = new OpenAIShimBeta({

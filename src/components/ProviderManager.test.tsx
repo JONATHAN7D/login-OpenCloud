@@ -12,6 +12,7 @@ const SYNC_END = '\x1B[?2026l'
 
 const ORIGINAL_ENV = {
   CLAUDE_CODE_USE_GITHUB: process.env.CLAUDE_CODE_USE_GITHUB,
+  CLAUDE_CODE_USE_QWEN: process.env.CLAUDE_CODE_USE_QWEN,
   GITHUB_TOKEN: process.env.GITHUB_TOKEN,
   GH_TOKEN: process.env.GH_TOKEN,
 }
@@ -137,6 +138,12 @@ function mockProviderManagerDependencies(
     hydrateGithubModelsTokenFromSecureStorage: () => {},
     readGithubModelsToken: syncRead,
     readGithubModelsTokenAsync: asyncRead,
+  }))
+
+  mock.module('../utils/qwenCredentials.js', () => ({
+    clearQwenStoredCredentials: () => ({ success: true }),
+    readQwenStoredCredentials: () => undefined,
+    readQwenStoredCredentialsAsync: async () => undefined,
   }))
 
   mock.module('../utils/settings/settings.js', () => ({
@@ -285,7 +292,7 @@ test('ProviderManager avoids first-frame false negative while stored-token looku
     frame => frame.includes('Provider manager'),
   )
 
-  expect(firstFrame).toContain('Checking GitHub Models credentials...')
+  expect(firstFrame).toContain('Checking browser-auth provider credentials...')
   expect(firstFrame).not.toContain('No provider profiles configured yet.')
 
   deferredStoredToken.resolve('stored-token')

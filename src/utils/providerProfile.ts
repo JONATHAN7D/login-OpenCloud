@@ -13,6 +13,7 @@ import {
   type RecommendationGoal,
 } from './providerRecommendation.ts'
 import { readGeminiAccessToken } from './geminiCredentials.ts'
+import { DEFAULT_QWEN_MODEL } from './qwenCredentials.ts'
 import { getOllamaChatBaseUrl } from './providerDiscovery.ts'
 
 export const PROFILE_FILE_NAME = '.openclaude-profile.json'
@@ -23,6 +24,7 @@ export const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash'
 const PROFILE_ENV_KEYS = [
   'CLAUDE_CODE_USE_OPENAI',
   'CLAUDE_CODE_USE_GEMINI',
+  'CLAUDE_CODE_USE_QWEN',
   'CLAUDE_CODE_USE_BEDROCK',
   'CLAUDE_CODE_USE_VERTEX',
   'CLAUDE_CODE_USE_FOUNDRY',
@@ -47,7 +49,13 @@ const SECRET_ENV_KEYS = [
   'GOOGLE_API_KEY',
 ] as const
 
-export type ProviderProfile = 'openai' | 'ollama' | 'codex' | 'gemini' | 'atomic-chat'
+export type ProviderProfile =
+  | 'openai'
+  | 'ollama'
+  | 'codex'
+  | 'gemini'
+  | 'qwen'
+  | 'atomic-chat'
 
 export type ProfileEnv = {
   OPENAI_BASE_URL?: string
@@ -94,6 +102,7 @@ export function isProviderProfile(value: unknown): value is ProviderProfile {
     value === 'ollama' ||
     value === 'codex' ||
     value === 'gemini' ||
+    value === 'qwen' ||
     value === 'atomic-chat'
   )
 }
@@ -350,6 +359,20 @@ export function buildCodexProfileEnv(options: {
   return env
 }
 
+export function buildQwenProfileEnv(options: {
+  model?: string | null
+  processEnv?: NodeJS.ProcessEnv
+}): ProfileEnv {
+  const processEnv = options.processEnv ?? process.env
+
+  return {
+    OPENAI_MODEL:
+      sanitizeProviderConfigValue(options.model, processEnv) ||
+      sanitizeProviderConfigValue(processEnv.OPENAI_MODEL, processEnv) ||
+      DEFAULT_QWEN_MODEL,
+  }
+}
+
 export function createProfileFile(
   profile: ProviderProfile,
   env: ProfileEnv,
@@ -414,6 +437,7 @@ export function hasExplicitProviderSelection(
 
   return (
     processEnv.CLAUDE_CODE_USE_OPENAI !== undefined ||
+    processEnv.CLAUDE_CODE_USE_QWEN !== undefined ||
     processEnv.CLAUDE_CODE_USE_GITHUB !== undefined ||
     processEnv.CLAUDE_CODE_USE_GEMINI !== undefined ||
     processEnv.CLAUDE_CODE_USE_BEDROCK !== undefined ||
@@ -493,6 +517,7 @@ export async function buildLaunchEnv(options: {
       CLAUDE_CODE_USE_GEMINI: '1',
     }
 
+    delete env.CLAUDE_CODE_USE_QWEN
     delete env.CLAUDE_CODE_USE_OPENAI
     delete env.CLAUDE_CODE_USE_GITHUB
 
@@ -540,11 +565,44 @@ export async function buildLaunchEnv(options: {
     return env
   }
 
+  if (options.profile === 'qwen') {
+    const env: NodeJS.ProcessEnv = {
+      ...processEnv,
+      CLAUDE_CODE_USE_QWEN: '1',
+      OPENAI_MODEL:
+        shellOpenAIModel ||
+        persistedOpenAIModel ||
+        DEFAULT_QWEN_MODEL,
+    }
+
+    delete env.CLAUDE_CODE_USE_OPENAI
+    delete env.CLAUDE_CODE_USE_GITHUB
+    delete env.CLAUDE_CODE_USE_GEMINI
+    delete env.CLAUDE_CODE_USE_BEDROCK
+    delete env.CLAUDE_CODE_USE_VERTEX
+    delete env.CLAUDE_CODE_USE_FOUNDRY
+    delete env.OPENAI_BASE_URL
+    delete env.OPENAI_API_BASE
+    delete env.OPENAI_API_KEY
+    delete env.CODEX_API_KEY
+    delete env.CHATGPT_ACCOUNT_ID
+    delete env.CODEX_ACCOUNT_ID
+    delete env.GEMINI_API_KEY
+    delete env.GEMINI_AUTH_MODE
+    delete env.GEMINI_ACCESS_TOKEN
+    delete env.GEMINI_MODEL
+    delete env.GEMINI_BASE_URL
+    delete env.GOOGLE_API_KEY
+
+    return env
+  }
+
   const env: NodeJS.ProcessEnv = {
     ...processEnv,
     CLAUDE_CODE_USE_OPENAI: '1',
   }
 
+  delete env.CLAUDE_CODE_USE_QWEN
   delete env.CLAUDE_CODE_USE_GEMINI
   delete env.CLAUDE_CODE_USE_GITHUB
   delete env.GEMINI_API_KEY
@@ -569,6 +627,7 @@ export async function buildLaunchEnv(options: {
     delete env.CODEX_API_KEY
     delete env.CHATGPT_ACCOUNT_ID
     delete env.CODEX_ACCOUNT_ID
+    delete env.CLAUDE_CODE_USE_QWEN
 
     return env
   }
@@ -589,6 +648,7 @@ export async function buildLaunchEnv(options: {
     delete env.CODEX_API_KEY
     delete env.CHATGPT_ACCOUNT_ID
     delete env.CODEX_ACCOUNT_ID
+    delete env.CLAUDE_CODE_USE_QWEN
 
     return env
   }
@@ -623,6 +683,7 @@ export async function buildLaunchEnv(options: {
       delete env.CHATGPT_ACCOUNT_ID
     }
     delete env.CODEX_ACCOUNT_ID
+    delete env.CLAUDE_CODE_USE_QWEN
 
     return env
   }

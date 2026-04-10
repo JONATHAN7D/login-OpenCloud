@@ -3,16 +3,16 @@ import { useEffect, useState } from 'react'
 import { Select } from '../../components/CustomSelect/select.js'
 import { Spinner } from '../../components/Spinner.js'
 import { Box, Text } from '../../ink.js'
-import {
-  DEFAULT_CODEX_BASE_URL,
-  resolveCodexApiCredentials,
-} from '../../services/api/providerConfig.js'
 import type { LocalJSXCommandCall } from '../../types/command.js'
-import { updateSettingsForSource } from '../../utils/settings/settings.js'
 import { execFileNoThrow } from '../../utils/execFileNoThrow.js'
+import {
+  DEFAULT_QWEN_MODEL,
+  hasExistingQwenOAuthLogin,
+  importQwenOAuthCredentialsFromCliCache,
+} from '../../utils/qwenCredentials.js'
+import { updateSettingsForSource } from '../../utils/settings/settings.js'
 
-export const DEFAULT_CHATGPT_ONBOARDING_MODEL = 'codexplan'
-const DEFAULT_MODEL = DEFAULT_CHATGPT_ONBOARDING_MODEL
+const DEFAULT_MODEL = DEFAULT_QWEN_MODEL
 const FORCE_RELOGIN_ARGS = new Set([
   'force',
   '--force',
@@ -25,13 +25,10 @@ const FORCE_RELOGIN_ARGS = new Set([
 type Step = 'menu' | 'login-busy' | 'error'
 
 type LoginResult =
-  | { ok: true }
-  | {
-      ok: false
-      detail: string
-    }
+  | { ok: true; warning?: string }
+  | { ok: false; detail: string }
 
-export function shouldForceChatGPTRelogin(args?: string): boolean {
+export function shouldForceQwenRelogin(args?: string): boolean {
   const normalized = (args ?? '').trim().toLowerCase()
   if (!normalized) {
     return false
@@ -39,21 +36,14 @@ export function shouldForceChatGPTRelogin(args?: string): boolean {
   return normalized.split(/\s+/).some(arg => FORCE_RELOGIN_ARGS.has(arg))
 }
 
-export function hasExistingChatGPTLogin(
-  env: NodeJS.ProcessEnv = process.env,
-): boolean {
-  const credentials = resolveCodexApiCredentials(env)
-  return Boolean(credentials.apiKey && credentials.accountId)
-}
-
-export function buildChatGPTOnboardingSettingsEnv(
+export function buildQwenOnboardingSettingsEnv(
   model: string,
 ): Record<string, string | undefined> {
   const normalizedModel = model.trim() || DEFAULT_MODEL
   return {
-    CLAUDE_CODE_USE_OPENAI: '1',
-    OPENAI_BASE_URL: DEFAULT_CODEX_BASE_URL,
+    CLAUDE_CODE_USE_QWEN: '1',
     OPENAI_MODEL: normalizedModel,
+    OPENAI_BASE_URL: undefined,
     OPENAI_API_KEY: undefined,
     OPENAI_API_BASE: undefined,
     OPENAI_ORG: undefined,
@@ -62,7 +52,7 @@ export function buildChatGPTOnboardingSettingsEnv(
     CODEX_API_KEY: undefined,
     CHATGPT_ACCOUNT_ID: undefined,
     CODEX_ACCOUNT_ID: undefined,
-    CLAUDE_CODE_USE_QWEN: undefined,
+    CLAUDE_CODE_USE_OPENAI: undefined,
     CLAUDE_CODE_USE_GITHUB: undefined,
     CLAUDE_CODE_USE_GEMINI: undefined,
     CLAUDE_CODE_USE_BEDROCK: undefined,
@@ -71,16 +61,16 @@ export function buildChatGPTOnboardingSettingsEnv(
   }
 }
 
-export function applyChatGPTOnboardingProcessEnv(
+export function applyQwenOnboardingProcessEnv(
   model: string,
   env: NodeJS.ProcessEnv = process.env,
 ): void {
   const normalizedModel = model.trim() || DEFAULT_MODEL
 
-  env.CLAUDE_CODE_USE_OPENAI = '1'
-  env.OPENAI_BASE_URL = DEFAULT_CODEX_BASE_URL
+  env.CLAUDE_CODE_USE_QWEN = '1'
   env.OPENAI_MODEL = normalizedModel
 
+  delete env.OPENAI_BASE_URL
   delete env.OPENAI_API_KEY
   delete env.OPENAI_API_BASE
   delete env.OPENAI_ORG
@@ -90,7 +80,7 @@ export function applyChatGPTOnboardingProcessEnv(
   delete env.CHATGPT_ACCOUNT_ID
   delete env.CODEX_ACCOUNT_ID
 
-  delete env.CLAUDE_CODE_USE_QWEN
+  delete env.CLAUDE_CODE_USE_OPENAI
   delete env.CLAUDE_CODE_USE_GITHUB
   delete env.CLAUDE_CODE_USE_GEMINI
   delete env.CLAUDE_CODE_USE_BEDROCK
@@ -102,7 +92,7 @@ export function applyChatGPTOnboardingProcessEnv(
 
 function mergeUserSettingsEnv(model: string): { ok: boolean; detail?: string } {
   const { error } = updateSettingsForSource('userSettings', {
-    env: buildChatGPTOnboardingSettingsEnv(model) as any,
+    env: buildQwenOnboardingSettingsEnv(model) as any,
   })
   if (error) {
     return { ok: false, detail: error.message }
@@ -110,7 +100,7 @@ function mergeUserSettingsEnv(model: string): { ok: boolean; detail?: string } {
   return { ok: true }
 }
 
-export function activateChatGPTOnboardingMode(
+export function activateQwenOnboardingMode(
   model: string = DEFAULT_MODEL,
   options?: {
     mergeSettingsEnv?: (model: string) => { ok: boolean; detail?: string }
@@ -120,8 +110,7 @@ export function activateChatGPTOnboardingMode(
 ): { ok: boolean; detail?: string } {
   const normalizedModel = model.trim() || DEFAULT_MODEL
   const mergeSettingsEnv = options?.mergeSettingsEnv ?? mergeUserSettingsEnv
-  const applyProcessEnv =
-    options?.applyProcessEnv ?? applyChatGPTOnboardingProcessEnv
+  const applyProcessEnv = options?.applyProcessEnv ?? applyQwenOnboardingProcessEnv
 
   const merged = mergeSettingsEnv(normalizedModel)
   if (!merged.ok) {
@@ -136,13 +125,13 @@ export function activateChatGPTOnboardingMode(
 function formatProcessFailure(stderr: string, stdout: string): string {
   const detail = stderr.trim() || stdout.trim()
   if (!detail) {
-    return 'The Codex CLI exited before OpenClaude could confirm your login.'
+    return 'The qwen CLI exited before OpenClaude could confirm your login.'
   }
   return detail.split(/\r?\n/).slice(-4).join('\n')
 }
 
-export async function runCodexBrowserLogin(): Promise<LoginResult> {
-  const versionCheck = await execFileNoThrow('codex', ['--version'], {
+export async function runQwenBrowserLogin(): Promise<LoginResult> {
+  const versionCheck = await execFileNoThrow('qwen', ['--version'], {
     timeout: 15_000,
     preserveOutputOnError: true,
     useCwd: false,
@@ -151,11 +140,11 @@ export async function runCodexBrowserLogin(): Promise<LoginResult> {
     return {
       ok: false,
       detail:
-        'The `codex` CLI was not found in PATH. Install the official Codex CLI first, then run /onboard-chatgpt again.',
+        'The `qwen` CLI was not found in PATH. Install the official Qwen Code CLI first, then run /onboard-qwen again.',
     }
   }
 
-  const loginResult = await execFileNoThrow('codex', ['login'], {
+  const loginResult = await execFileNoThrow('qwen', ['auth', 'qwen-oauth'], {
     timeout: 10 * 60 * 1000,
     preserveOutputOnError: true,
     useCwd: false,
@@ -167,29 +156,19 @@ export async function runCodexBrowserLogin(): Promise<LoginResult> {
     }
   }
 
-  const credentials = resolveCodexApiCredentials(process.env)
-  if (!credentials.apiKey) {
+  const imported = importQwenOAuthCredentialsFromCliCache(process.env)
+  if (!imported.ok) {
+    const detail = imported.detail
     return {
       ok: false,
-      detail:
-        credentials.authPath
-          ? `Codex login finished, but no auth token was found at ${credentials.authPath}.`
-          : 'Codex login finished, but no auth token was found.',
+      detail,
     }
   }
 
-  if (!credentials.accountId) {
-    return {
-      ok: false,
-      detail:
-        'Codex login finished, but chatgpt_account_id is still missing. Re-run `codex login` and make sure the browser flow completes fully.',
-    }
-  }
-
-  return { ok: true }
+  return { ok: true, warning: imported.warning }
 }
 
-function OnboardChatGPT(props: {
+function OnboardQwen(props: {
   onDone: Parameters<LocalJSXCommandCall>[0]
   onChangeAPIKey: () => void
 }): React.ReactNode {
@@ -204,31 +183,34 @@ function OnboardChatGPT(props: {
 
     let cancelled = false
     void (async () => {
-      const result = await runCodexBrowserLogin()
+      const result = await runQwenBrowserLogin()
       if (cancelled) {
         return
       }
 
       if (!result.ok) {
-        setErrorMsg(result.detail)
+        const detail = result.detail
+        setErrorMsg(detail)
         setStep('error')
         return
       }
 
-      const activated = activateChatGPTOnboardingMode(DEFAULT_MODEL, {
+      const activated = activateQwenOnboardingMode(DEFAULT_MODEL, {
         onChangeAPIKey,
       })
       if (!activated.ok) {
         setErrorMsg(
           `Login completed, but provider activation failed: ${activated.detail ?? 'unknown error'}. ` +
-            'Configure CLAUDE_CODE_USE_OPENAI=1, OPENAI_BASE_URL, and OPENAI_MODEL manually if needed.',
+            'Configure CLAUDE_CODE_USE_QWEN=1 and OPENAI_MODEL manually if needed.',
         )
         setStep('error')
         return
       }
 
       onDone(
-        'ChatGPT authentication completed. Codex mode is now active using official Codex CLI credentials.',
+        result.warning
+          ? `Qwen authentication completed. ${result.warning} Qwen mode is now active for this session and future runs.`
+          : 'Qwen authentication completed. Qwen mode is now active for this session and future runs.',
         { display: 'user' },
       )
     })()
@@ -241,14 +223,14 @@ function OnboardChatGPT(props: {
   if (step === 'login-busy') {
     return (
       <Box flexDirection="column" gap={1}>
-        <Text bold>ChatGPT setup</Text>
+        <Text bold>Qwen setup</Text>
         <Box>
           <Spinner />
-          <Text>Starting official login via the Codex CLI...</Text>
+          <Text>Starting official Qwen browser login...</Text>
         </Box>
         <Text dimColor>
-          Your browser should open to authenticate your ChatGPT account. When
-          the login finishes, OpenClaude will activate the Codex provider for
+          Your browser should open for the official qwen CLI OAuth flow. When
+          the login finishes, OpenClaude will activate the Qwen provider for
           this session and future runs.
         </Text>
       </Box>
@@ -270,7 +252,7 @@ function OnboardChatGPT(props: {
               setStep('login-busy')
               return
             }
-            onDone('ChatGPT onboarding cancelled.', { display: 'system' })
+            onDone('Qwen onboarding cancelled.', { display: 'system' })
           }}
         />
       </Box>
@@ -279,11 +261,11 @@ function OnboardChatGPT(props: {
 
   return (
     <Box flexDirection="column" gap={1}>
-      <Text bold>ChatGPT setup</Text>
+      <Text bold>Qwen setup</Text>
       <Text dimColor>
-        This flow uses the official Codex CLI login to open your browser,
-        authenticate your ChatGPT account, and then activate the Codex provider
-        in OpenClaude without relying on scraping or private endpoints.
+        This flow uses the official qwen CLI login to open your browser,
+        authenticate your qwen.ai account, import the OAuth credentials into
+        OpenClaude secure storage, and activate the Qwen provider.
       </Text>
       <Select
         options={[
@@ -298,7 +280,7 @@ function OnboardChatGPT(props: {
         ]}
         onChange={(value: string) => {
           if (value === 'cancel') {
-            onDone('ChatGPT onboarding cancelled.', { display: 'system' })
+            onDone('Qwen onboarding cancelled.', { display: 'system' })
             return
           }
           setStep('login-busy')
@@ -309,29 +291,29 @@ function OnboardChatGPT(props: {
 }
 
 export const call: LocalJSXCommandCall = async (onDone, context, args) => {
-  const forceRelogin = shouldForceChatGPTRelogin(args)
+  const forceRelogin = shouldForceQwenRelogin(args)
 
-  if (hasExistingChatGPTLogin() && !forceRelogin) {
-    const activated = activateChatGPTOnboardingMode(DEFAULT_MODEL, {
+  if (hasExistingQwenOAuthLogin() && !forceRelogin) {
+    const activated = activateQwenOnboardingMode(DEFAULT_MODEL, {
       onChangeAPIKey: context.onChangeAPIKey,
     })
     if (!activated.ok) {
       onDone(
-        `ChatGPT/Codex credentials were detected, but activation failed: ${activated.detail ?? 'unknown error'}.`,
+        `Qwen credentials were detected, but activation failed: ${activated.detail ?? 'unknown error'}.`,
         { display: 'system' },
       )
       return null
     }
 
     onDone(
-      'ChatGPT/Codex credentials already exist. Codex mode was activated. Use /onboard-chatgpt --force to authenticate again.',
+      'Qwen credentials already exist. Qwen mode was activated. Use /onboard-qwen --force to authenticate again.',
       { display: 'user' },
     )
     return null
   }
 
   return (
-    <OnboardChatGPT
+    <OnboardQwen
       onDone={onDone}
       onChangeAPIKey={context.onChangeAPIKey}
     />

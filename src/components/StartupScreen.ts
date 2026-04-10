@@ -84,6 +84,7 @@ const LOGO_CLAUDE = [
 function detectProvider(): { name: string; model: string; baseUrl: string; isLocal: boolean } {
   const useGemini = process.env.CLAUDE_CODE_USE_GEMINI === '1' || process.env.CLAUDE_CODE_USE_GEMINI === 'true'
   const useGithub = process.env.CLAUDE_CODE_USE_GITHUB === '1' || process.env.CLAUDE_CODE_USE_GITHUB === 'true'
+  const useQwen = process.env.CLAUDE_CODE_USE_QWEN === '1' || process.env.CLAUDE_CODE_USE_QWEN === 'true'
   const useOpenAI = process.env.CLAUDE_CODE_USE_OPENAI === '1' || process.env.CLAUDE_CODE_USE_OPENAI === 'true'
 
   if (useGemini) {
@@ -97,6 +98,12 @@ function detectProvider(): { name: string; model: string; baseUrl: string; isLoc
     const baseUrl =
       process.env.OPENAI_BASE_URL || 'https://models.github.ai/inference'
     return { name: 'GitHub Models', model, baseUrl, isLocal: false }
+  }
+
+  if (useQwen) {
+    const model = process.env.OPENAI_MODEL || 'coder-model'
+    const baseUrl = process.env.OPENAI_BASE_URL || 'dynamic via Qwen OAuth'
+    return { name: 'Qwen', model, baseUrl, isLocal: false }
   }
 
   if (useOpenAI) {

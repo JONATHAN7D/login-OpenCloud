@@ -1,8 +1,16 @@
 import figures from 'figures'
 import * as React from 'react'
 import { Box, Text } from '../ink.js'
+import { DEFAULT_CODEX_BASE_URL } from '../services/api/providerConfig.js'
 import { useKeybinding } from '../keybindings/useKeybinding.js'
 import type { ProviderProfile } from '../utils/config.js'
+import {
+  DEFAULT_CHATGPT_ONBOARDING_MODEL,
+  runCodexBrowserLogin,
+} from '../commands/onboard-chatgpt/onboard-chatgpt.js'
+import {
+  runQwenBrowserLogin,
+} from '../commands/onboard-qwen/onboard-qwen.js'
 import {
   addProviderProfile,
   applyActiveProviderProfileFromConfig,
@@ -23,9 +31,15 @@ import {
   readGithubModelsTokenAsync,
 } from '../utils/githubModelsCredentials.js'
 import { isEnvTruthy } from '../utils/envUtils.js'
+import {
+  clearQwenStoredCredentials,
+  DEFAULT_QWEN_MODEL,
+  readQwenStoredCredentialsAsync,
+} from '../utils/qwenCredentials.js'
 import { updateSettingsForSource } from '../utils/settings/settings.js'
 import { Select } from './CustomSelect/index.js'
 import { Pane } from './design-system/Pane.js'
+import { Spinner } from './Spinner.js'
 import TextInput from './TextInput.js'
 
 export type ProviderManagerResult = {
@@ -42,6 +56,9 @@ type Props = {
 type Screen =
   | 'menu'
   | 'select-preset'
+  | 'openai-auth-method'
+  | 'openai-browser-login'
+  | 'qwen-browser-login'
   | 'form'
   | 'select-active'
   | 'select-edit'
@@ -89,8 +106,12 @@ const GITHUB_PROVIDER_ID = '__github_models__'
 const GITHUB_PROVIDER_LABEL = 'GitHub Models'
 const GITHUB_PROVIDER_DEFAULT_MODEL = 'github:copilot'
 const GITHUB_PROVIDER_DEFAULT_BASE_URL = 'https://models.github.ai/inference'
+const QWEN_PROVIDER_ID = '__qwen_oauth__'
+const QWEN_PROVIDER_LABEL = 'Qwen'
+const CHATGPT_BROWSER_PROVIDER_NAME = 'ChatGPT Codex'
 
 type GithubCredentialSource = 'stored' | 'env' | 'none'
+type QwenCredentialSource = 'stored' | 'none'
 
 function toDraft(profile: ProviderProfile): ProviderDraft {
   return {
@@ -177,10 +198,264 @@ function getGithubProviderSummary(
   return `github-models · ${GITHUB_PROVIDER_DEFAULT_BASE_URL} · ${getGithubProviderModel(processEnv)} · ${credentialSummary}${activeSuffix}`
 }
 
+async function resolveQwenCredentialSource(): Promise<QwenCredentialSource> {
+  return (await readQwenStoredCredentialsAsync()) ? 'stored' : 'none'
+}
+
+function isQwenProviderAvailable(
+  credentialSource: QwenCredentialSource,
+  processEnv: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (isEnvTruthy(processEnv.CLAUDE_CODE_USE_QWEN)) {
+    return true
+  }
+  return credentialSource === 'stored'
+}
+
+function getQwenProviderModel(
+  processEnv: NodeJS.ProcessEnv = process.env,
+): string {
+  if (isEnvTruthy(processEnv.CLAUDE_CODE_USE_QWEN)) {
+    return processEnv.OPENAI_MODEL?.trim() || DEFAULT_QWEN_MODEL
+  }
+  return DEFAULT_QWEN_MODEL
+}
+
+function getQwenProviderSummary(
+  isActive: boolean,
+  credentialSource: QwenCredentialSource,
+  processEnv: NodeJS.ProcessEnv = process.env,
+): string {
+  const credentialSummary =
+    credentialSource === 'stored' ? 'oauth stored' : 'no token found'
+  const activeSuffix = isActive ? ' (active)' : ''
+  return `qwen-oauth · dynamic endpoint · ${getQwenProviderModel(processEnv)} · ${credentialSummary}${activeSuffix}`
+}
+
+function OpenAIAuthMethodScreen(props: {
+  onChoose: (value: 'browser' | 'manual') => void
+  onBack: () => void
+  errorMessage?: string
+}): React.ReactNode {
+  const { onChoose, onBack, errorMessage } = props
+
+  return (
+    <Box flexDirection="column" gap={1}>
+      <Text color="remember" bold>
+        OpenAI setup
+      </Text>
+      <Text dimColor>
+        Choose whether to sign in with ChatGPT in the browser or configure an
+        OpenAI-compatible API key manually.
+      </Text>
+      {errorMessage ? <Text color="error">{errorMessage}</Text> : null}
+      <Select
+        options={[
+          {
+            value: 'browser',
+            label: 'ChatGPT login in browser',
+            description:
+              'Use the official Codex CLI login flow and save a ChatGPT Codex profile',
+          },
+          {
+            value: 'manual',
+            label: 'Manual API key setup',
+            description:
+              'Enter base URL, model, and API key for OpenAI or any compatible provider',
+          },
+        ]}
+        onChange={(value: string) => onChoose(value as 'browser' | 'manual')}
+        onCancel={onBack}
+        visibleOptionCount={2}
+      />
+    </Box>
+  )
+}
+
+function OpenAIBrowserLoginScreen(props: {
+  onSuccess: () => void
+  onBack: () => void
+}): React.ReactNode {
+  const { onSuccess, onBack } = props
+  const [attempt, setAttempt] = React.useState(0)
+  const [errorMessage, setErrorMessage] = React.useState<string>()
+  const onSuccessRef = React.useRef(onSuccess)
+
+  React.useEffect(() => {
+    onSuccessRef.current = onSuccess
+  }, [onSuccess])
+
+  React.useEffect(() => {
+    let cancelled = false
+    setErrorMessage(undefined)
+
+    void (async () => {
+      const result = await runCodexBrowserLogin()
+      if (cancelled) {
+        return
+      }
+
+      if (!result.ok) {
+        setErrorMessage(result.detail)
+        return
+      }
+
+      onSuccessRef.current()
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [attempt])
+
+  if (!errorMessage) {
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Text color="remember" bold>
+          OpenAI setup
+        </Text>
+        <Box>
+          <Spinner />
+          <Text>Starting ChatGPT browser login...</Text>
+        </Box>
+        <Text dimColor>
+          Your browser should open for the official Codex CLI login flow. When
+          it completes, OpenClaude will save and activate a ChatGPT Codex
+          provider profile for you.
+        </Text>
+      </Box>
+    )
+  }
+
+  return (
+    <Box flexDirection="column" gap={1}>
+      <Text color="remember" bold>
+        OpenAI setup
+      </Text>
+      <Text color="error">{errorMessage}</Text>
+      <Select
+        options={[
+          {
+            value: 'retry',
+            label: 'Retry browser login',
+            description: 'Try the official ChatGPT/Codex login flow again',
+          },
+          {
+            value: 'back',
+            label: 'Back',
+            description: 'Return to the OpenAI setup options',
+          },
+        ]}
+        onChange={(value: string) => {
+          if (value === 'retry') {
+            setAttempt(current => current + 1)
+            return
+          }
+          onBack()
+        }}
+        onCancel={onBack}
+        visibleOptionCount={2}
+      />
+    </Box>
+  )
+}
+
+function QwenBrowserLoginScreen(props: {
+  onSuccess: () => void
+  onBack: () => void
+}): React.ReactNode {
+  const { onSuccess, onBack } = props
+  const [attempt, setAttempt] = React.useState(0)
+  const [errorMessage, setErrorMessage] = React.useState<string>()
+  const onSuccessRef = React.useRef(onSuccess)
+
+  React.useEffect(() => {
+    onSuccessRef.current = onSuccess
+  }, [onSuccess])
+
+  React.useEffect(() => {
+    let cancelled = false
+    setErrorMessage(undefined)
+
+    void (async () => {
+      const result = await runQwenBrowserLogin()
+      if (cancelled) {
+        return
+      }
+
+      if (!result.ok) {
+        setErrorMessage(result.detail)
+        return
+      }
+
+      onSuccessRef.current()
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [attempt])
+
+  if (!errorMessage) {
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Text color="remember" bold>
+          Qwen setup
+        </Text>
+        <Box>
+          <Spinner />
+          <Text>Starting Qwen browser login...</Text>
+        </Box>
+        <Text dimColor>
+          Your browser should open for the official qwen CLI OAuth flow. When
+          it completes, OpenClaude will import the credentials and activate the
+          Qwen provider for you.
+        </Text>
+      </Box>
+    )
+  }
+
+  return (
+    <Box flexDirection="column" gap={1}>
+      <Text color="remember" bold>
+        Qwen setup
+      </Text>
+      <Text color="error">{errorMessage}</Text>
+      <Select
+        options={[
+          {
+            value: 'retry',
+            label: 'Retry browser login',
+            description: 'Try the official Qwen OAuth browser flow again',
+          },
+          {
+            value: 'back',
+            label: 'Back',
+            description: 'Return to provider presets',
+          },
+        ]}
+        onChange={(value: string) => {
+          if (value === 'retry') {
+            setAttempt(current => current + 1)
+            return
+          }
+          onBack()
+        }}
+        onCancel={onBack}
+        visibleOptionCount={2}
+      />
+    </Box>
+  )
+}
+
 export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
   const initialGithubCredentialSource = getGithubCredentialSourceFromEnv()
   const initialIsGithubActive = isEnvTruthy(process.env.CLAUDE_CODE_USE_GITHUB)
   const initialHasGithubCredential = initialGithubCredentialSource !== 'none'
+  const initialQwenCredentialSource = isEnvTruthy(process.env.CLAUDE_CODE_USE_QWEN)
+    ? 'stored'
+    : 'none'
+  const initialIsQwenActive = isEnvTruthy(process.env.CLAUDE_CODE_USE_QWEN)
 
   const [profiles, setProfiles] = React.useState(() => getProviderProfiles())
   const [activeProfileId, setActiveProfileId] = React.useState(
@@ -196,6 +471,16 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
   const [isGithubCredentialSourceResolved, setIsGithubCredentialSourceResolved] =
     React.useState(() => initialHasGithubCredential || initialIsGithubActive)
   const githubRefreshEpochRef = React.useRef(0)
+  const [qwenProviderAvailable, setQwenProviderAvailable] = React.useState(
+    () => isQwenProviderAvailable(initialQwenCredentialSource),
+  )
+  const [qwenCredentialSource, setQwenCredentialSource] = React.useState<QwenCredentialSource>(
+    () => initialQwenCredentialSource,
+  )
+  const [isQwenActive, setIsQwenActive] = React.useState(() => initialIsQwenActive)
+  const [isQwenCredentialSourceResolved, setIsQwenCredentialSourceResolved] =
+    React.useState(() => initialIsQwenActive)
+  const qwenRefreshEpochRef = React.useRef(0)
   const [screen, setScreen] = React.useState<Screen>(
     mode === 'first-run' ? 'select-preset' : 'menu',
   )
@@ -244,25 +529,55 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
     })()
   }, [])
 
+  const refreshQwenProviderState = React.useCallback((): void => {
+    const qwenActive = isEnvTruthy(process.env.CLAUDE_CODE_USE_QWEN)
+    if (qwenActive) {
+      qwenRefreshEpochRef.current += 1
+      setQwenCredentialSource('stored')
+      setQwenProviderAvailable(true)
+      setIsQwenActive(true)
+      setIsQwenCredentialSourceResolved(true)
+      return
+    }
+
+    setIsQwenCredentialSourceResolved(false)
+    const refreshEpoch = ++qwenRefreshEpochRef.current
+    void (async () => {
+      const credentialSource = await resolveQwenCredentialSource()
+      if (refreshEpoch !== qwenRefreshEpochRef.current) {
+        return
+      }
+
+      setQwenCredentialSource(credentialSource)
+      setQwenProviderAvailable(isQwenProviderAvailable(credentialSource))
+      setIsQwenActive(isEnvTruthy(process.env.CLAUDE_CODE_USE_QWEN))
+      setIsQwenCredentialSourceResolved(true)
+    })()
+  }, [])
+
   React.useEffect(() => {
     refreshGithubProviderState()
+    refreshQwenProviderState()
 
     return () => {
       githubRefreshEpochRef.current += 1
+      qwenRefreshEpochRef.current += 1
     }
-  }, [refreshGithubProviderState])
+  }, [refreshGithubProviderState, refreshQwenProviderState])
 
   function refreshProfiles(): void {
     const nextProfiles = getProviderProfiles()
     setProfiles(nextProfiles)
     setActiveProfileId(getActiveProviderProfile()?.id)
     refreshGithubProviderState()
+    refreshQwenProviderState()
   }
 
   function clearStartupProviderOverrideFromUserSettings(): string | null {
     const { error } = updateSettingsForSource('userSettings', {
       env: {
         CLAUDE_CODE_USE_OPENAI: undefined as any,
+        CLAUDE_CODE_USE_QWEN: undefined as any,
         CLAUDE_CODE_USE_GEMINI: undefined as any,
         CLAUDE_CODE_USE_GITHUB: undefined as any,
         CLAUDE_CODE_USE_BEDROCK: undefined as any,
@@ -320,6 +635,49 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
     return null
   }
 
+  function activateQwenProvider(): string | null {
+    const { error } = updateSettingsForSource('userSettings', {
+      env: {
+        CLAUDE_CODE_USE_QWEN: '1',
+        OPENAI_MODEL: DEFAULT_QWEN_MODEL,
+        OPENAI_API_KEY: undefined as any,
+        OPENAI_ORG: undefined as any,
+        OPENAI_PROJECT: undefined as any,
+        OPENAI_ORGANIZATION: undefined as any,
+        OPENAI_BASE_URL: undefined as any,
+        OPENAI_API_BASE: undefined as any,
+        CLAUDE_CODE_USE_OPENAI: undefined as any,
+        CLAUDE_CODE_USE_GITHUB: undefined as any,
+        CLAUDE_CODE_USE_GEMINI: undefined as any,
+        CLAUDE_CODE_USE_BEDROCK: undefined as any,
+        CLAUDE_CODE_USE_VERTEX: undefined as any,
+        CLAUDE_CODE_USE_FOUNDRY: undefined as any,
+      },
+    })
+    if (error) {
+      return error.message
+    }
+
+    process.env.CLAUDE_CODE_USE_QWEN = '1'
+    process.env.OPENAI_MODEL = DEFAULT_QWEN_MODEL
+    delete process.env.OPENAI_API_KEY
+    delete process.env.OPENAI_ORG
+    delete process.env.OPENAI_PROJECT
+    delete process.env.OPENAI_ORGANIZATION
+    delete process.env.OPENAI_BASE_URL
+    delete process.env.OPENAI_API_BASE
+    delete process.env.CLAUDE_CODE_USE_OPENAI
+    delete process.env.CLAUDE_CODE_USE_GITHUB
+    delete process.env.CLAUDE_CODE_USE_GEMINI
+    delete process.env.CLAUDE_CODE_USE_BEDROCK
+    delete process.env.CLAUDE_CODE_USE_VERTEX
+    delete process.env.CLAUDE_CODE_USE_FOUNDRY
+    delete process.env.CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED
+    delete process.env.CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED_ID
+
+    return null
+  }
+
   function deleteGithubProvider(): string | null {
     const storedTokenBeforeClear = readGithubModelsToken()?.trim()
     const cleared = clearGithubModelsToken()
@@ -359,6 +717,32 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
     delete process.env.OPENAI_API_BASE
 
     // Restore active provider profile immediately when one exists.
+    applyActiveProviderProfileFromConfig()
+
+    return null
+  }
+
+  function deleteQwenProvider(): string | null {
+    const cleared = clearQwenStoredCredentials()
+    if (!cleared.success) {
+      return cleared.warning ?? 'Could not clear Qwen credentials.'
+    }
+
+    const { error } = updateSettingsForSource('userSettings', {
+      env: {
+        CLAUDE_CODE_USE_QWEN: undefined as any,
+      },
+    })
+    if (error) {
+      return error.message
+    }
+
+    delete process.env.CLAUDE_CODE_USE_QWEN
+    delete process.env.OPENAI_MODEL
+    delete process.env.OPENAI_BASE_URL
+    delete process.env.OPENAI_API_BASE
+    delete process.env.OPENAI_API_KEY
+
     applyActiveProviderProfileFromConfig()
 
     return null
@@ -446,6 +830,96 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
     setScreen('menu')
   }
 
+  function completeActiveProviderChange(
+    profile: ProviderProfile,
+    successMessage: string,
+  ): void {
+    const settingsOverrideError = clearStartupProviderOverrideFromUserSettings()
+    refreshProfiles()
+    const finalMessage = settingsOverrideError
+      ? `${successMessage}. Warning: could not clear startup provider override (${settingsOverrideError}).`
+      : successMessage
+
+    setStatusMessage(finalMessage)
+    setErrorMessage(undefined)
+
+    if (mode === 'first-run') {
+      onDone({
+        action: 'saved',
+        activeProfileId: profile.id,
+        message: finalMessage,
+      })
+      return
+    }
+
+    setEditingProfileId(null)
+    setFormStepIndex(0)
+    setCursorOffset(0)
+    setScreen('menu')
+  }
+
+  function saveChatGPTBrowserProvider(): string | null {
+    const existingProfile = profiles.find(
+      profile =>
+        profile.provider === 'openai' &&
+        profile.baseUrl === DEFAULT_CODEX_BASE_URL &&
+        profile.model === DEFAULT_CHATGPT_ONBOARDING_MODEL,
+    )
+
+    if (existingProfile) {
+      const activated = setActiveProviderProfile(existingProfile.id)
+      if (!activated) {
+        return 'Could not activate the existing ChatGPT Codex provider profile.'
+      }
+
+      completeActiveProviderChange(
+        activated,
+        `Active provider: ${activated.name}`,
+      )
+      return null
+    }
+
+    const saved = addProviderProfile(
+      {
+        provider: 'openai',
+        name: CHATGPT_BROWSER_PROVIDER_NAME,
+        baseUrl: DEFAULT_CODEX_BASE_URL,
+        model: DEFAULT_CHATGPT_ONBOARDING_MODEL,
+        apiKey: '',
+      },
+      { makeActive: true },
+    )
+
+    if (!saved) {
+      return 'Could not save the ChatGPT Codex provider profile.'
+    }
+
+    completeActiveProviderChange(saved, `Added provider: ${saved.name} (now active)`)
+    return null
+  }
+
+  function saveQwenBrowserProvider(): string | null {
+    const qwenError = activateQwenProvider()
+    if (qwenError) {
+      return qwenError
+    }
+
+    refreshProfiles()
+    setStatusMessage(`Active provider: ${QWEN_PROVIDER_LABEL}`)
+    setErrorMessage(undefined)
+
+    if (mode === 'first-run') {
+      onDone({
+        action: 'saved',
+        message: `Provider configured: ${QWEN_PROVIDER_LABEL}`,
+      })
+      return null
+    }
+
+    setScreen('menu')
+    return null
+  }
+
   function handleFormSubmit(value: string): void {
     const trimmed = value.trim()
 
@@ -512,7 +986,12 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
       {
         value: 'openai',
         label: 'OpenAI',
-        description: 'OpenAI API with API key',
+        description: 'OpenAI API with manual setup or ChatGPT browser login',
+      },
+      {
+        value: 'qwen',
+        label: 'Qwen',
+        description: 'Qwen OAuth via browser using the official qwen CLI',
       },
       {
         value: 'moonshotai',
@@ -581,13 +1060,23 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
           {mode === 'first-run' ? 'Set up provider' : 'Choose provider preset'}
         </Text>
         <Text dimColor>
-          Pick a preset, then confirm base URL, model, and API key.
+          Pick a preset, then confirm base URL, model, and API key. OpenAI can
+          also use browser login for ChatGPT/Codex, and Qwen can use browser
+          login through the official qwen CLI.
         </Text>
         <Select
           options={options}
-          onChange={value => {
+          onChange={(value: string) => {
             if (value === 'skip') {
               closeWithCancelled('Provider setup skipped')
+              return
+            }
+            if (value === 'openai') {
+              setScreen('openai-auth-method')
+              return
+            }
+            if (value === 'qwen') {
+              setScreen('qwen-browser-login')
               return
             }
             startCreateFromPreset(value as ProviderPreset)
@@ -625,7 +1114,7 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
           <Text>{figures.pointer}</Text>
           <TextInput
             value={currentValue}
-            onChange={value =>
+            onChange={(value: string) =>
               setDraft(prev => ({
                 ...prev,
                 [currentStepKey]: value,
@@ -650,7 +1139,8 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
 
   function renderMenu(): React.ReactNode {
     const hasProfiles = profiles.length > 0
-    const hasSelectableProviders = hasProfiles || githubProviderAvailable
+    const hasSelectableProviders =
+      hasProfiles || githubProviderAvailable || qwenProviderAvailable
 
     const options = [
       {
@@ -693,11 +1183,17 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
         </Text>
         {statusMessage && <Text>{statusMessage}</Text>}
         <Box flexDirection="column">
-          {profiles.length === 0 && !githubProviderAvailable ? (
-            isGithubCredentialSourceResolved ? (
+          {profiles.length === 0 && !githubProviderAvailable && !qwenProviderAvailable ? (
+            isGithubCredentialSourceResolved && isQwenCredentialSourceResolved ? (
               <Text dimColor>No provider profiles configured yet.</Text>
             ) : (
-              <Text dimColor>Checking GitHub Models credentials...</Text>
+              <Text dimColor>
+                {!isGithubCredentialSourceResolved && !isQwenCredentialSourceResolved
+                  ? 'Checking browser-auth provider credentials...'
+                  : !isGithubCredentialSourceResolved
+                    ? 'Checking GitHub Models credentials...'
+                    : 'Checking Qwen credentials...'}
+              </Text>
             )
           ) : (
             <>
@@ -715,12 +1211,21 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
                   )}
                 </Text>
               ) : null}
+              {qwenProviderAvailable ? (
+                <Text dimColor>
+                  - {QWEN_PROVIDER_LABEL}:{' '}
+                  {getQwenProviderSummary(
+                    isQwenActive,
+                    qwenCredentialSource,
+                  )}
+                </Text>
+              ) : null}
             </>
           )}
         </Box>
         <Select
           options={options}
-          onChange={value => {
+          onChange={(value: string) => {
             setErrorMessage(undefined)
             switch (value) {
               case 'add':
@@ -757,9 +1262,10 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
     title: string,
     emptyMessage: string,
     onSelect: (profileId: string) => void,
-    options?: { includeGithub?: boolean },
+    options?: { includeGithub?: boolean; includeQwen?: boolean },
   ): React.ReactNode {
     const includeGithub = options?.includeGithub ?? false
+    const includeQwen = options?.includeQwen ?? false
     const selectOptions = profiles.map(profile => ({
       value: profile.id,
       label:
@@ -776,6 +1282,16 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
           ? `${GITHUB_PROVIDER_LABEL} (active)`
           : GITHUB_PROVIDER_LABEL,
         description: `github-models · ${GITHUB_PROVIDER_DEFAULT_BASE_URL} · ${getGithubProviderModel()}`,
+      })
+    }
+
+    if (includeQwen && qwenProviderAvailable) {
+      selectOptions.push({
+        value: QWEN_PROVIDER_ID,
+        label: isQwenActive
+          ? `${QWEN_PROVIDER_LABEL} (active)`
+          : QWEN_PROVIDER_LABEL,
+        description: `qwen-oauth · dynamic endpoint · ${getQwenProviderModel()}`,
       })
     }
 
@@ -823,6 +1339,50 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
     case 'select-preset':
       content = renderPresetSelection()
       break
+    case 'openai-auth-method':
+      content = (
+        <OpenAIAuthMethodScreen
+          onChoose={value => {
+            setErrorMessage(undefined)
+            if (value === 'browser') {
+              setScreen('openai-browser-login')
+              return
+            }
+            startCreateFromPreset('openai')
+          }}
+          errorMessage={errorMessage}
+          onBack={() => setScreen('select-preset')}
+        />
+      )
+      break
+    case 'openai-browser-login':
+      content = (
+        <OpenAIBrowserLoginScreen
+          onSuccess={() => {
+            const saveError = saveChatGPTBrowserProvider()
+            if (saveError) {
+              setErrorMessage(saveError)
+              setScreen('openai-auth-method')
+            }
+          }}
+          onBack={() => setScreen('openai-auth-method')}
+        />
+      )
+      break
+    case 'qwen-browser-login':
+      content = (
+        <QwenBrowserLoginScreen
+          onSuccess={() => {
+            const saveError = saveQwenBrowserProvider()
+            if (saveError) {
+              setErrorMessage(saveError)
+              setScreen('select-preset')
+            }
+          }}
+          onBack={() => setScreen('select-preset')}
+        />
+      )
+      break
     case 'form':
       content = renderForm()
       break
@@ -843,6 +1403,18 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
             setScreen('menu')
             return
           }
+          if (profileId === QWEN_PROVIDER_ID) {
+            const qwenError = activateQwenProvider()
+            if (qwenError) {
+              setErrorMessage(`Could not activate Qwen provider: ${qwenError}`)
+              setScreen('menu')
+              return
+            }
+            refreshProfiles()
+            setStatusMessage(`Active provider: ${QWEN_PROVIDER_LABEL}`)
+            setScreen('menu')
+            return
+          }
 
           const active = setActiveProviderProfile(profileId)
           if (!active) {
@@ -860,7 +1432,7 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
           )
           setScreen('menu')
         },
-          { includeGithub: true },
+          { includeGithub: true, includeQwen: true },
       )
       break
     case 'select-edit':
@@ -888,6 +1460,17 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
             setScreen('menu')
             return
           }
+          if (profileId === QWEN_PROVIDER_ID) {
+            const qwenDeleteError = deleteQwenProvider()
+            if (qwenDeleteError) {
+              setErrorMessage(`Could not delete Qwen provider: ${qwenDeleteError}`)
+            } else {
+              refreshProfiles()
+              setStatusMessage('Qwen provider deleted')
+            }
+            setScreen('menu')
+            return
+          }
 
           const result = deleteProviderProfile(profileId)
           if (!result.removed) {
@@ -905,7 +1488,7 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
           }
           setScreen('menu')
         },
-        { includeGithub: true },
+        { includeGithub: true, includeQwen: true },
       )
       break
     case 'menu':

@@ -8,6 +8,7 @@ import {
   resolveGeminiCredential,
 } from './geminiAuth.js'
 import { redactSecretValueForDisplay } from './providerProfile.js'
+import { hasExistingQwenOAuthLogin } from './qwenCredentials.js'
 
 function isEnvTruthy(value: string | undefined): boolean {
   if (!value) return false
@@ -25,6 +26,13 @@ export async function getProviderValidationError(
 ): Promise<string | null> {
   const useOpenAI = isEnvTruthy(env.CLAUDE_CODE_USE_OPENAI)
   const useGithub = isEnvTruthy(env.CLAUDE_CODE_USE_GITHUB)
+
+  if (isEnvTruthy(env.CLAUDE_CODE_USE_QWEN)) {
+    if (!hasExistingQwenOAuthLogin(env)) {
+      return 'Qwen OAuth credentials were not found. Run /onboard-qwen or complete `qwen auth qwen-oauth` first.'
+    }
+    return null
+  }
 
   if (isEnvTruthy(env.CLAUDE_CODE_USE_GEMINI)) {
     const geminiCredential = await (
