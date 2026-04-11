@@ -54,6 +54,7 @@ describe('hasExistingGithubModelsLoginToken', () => {
 describe('onboarding auth precedence cleanup', () => {
   test('clears preexisting OpenAI auth when switching to GitHub', () => {
     const env: NodeJS.ProcessEnv = {
+      CLAUDE_CODE_USE_QWEN: '1',
       CLAUDE_CODE_USE_OPENAI: '1',
       OPENAI_MODEL: 'gpt-4o',
       OPENAI_API_KEY: 'sk-stale-openai-key',
@@ -79,6 +80,7 @@ describe('onboarding auth precedence cleanup', () => {
     expect(env.OPENAI_API_BASE).toBeUndefined()
 
     expect(env.CLAUDE_CODE_USE_OPENAI).toBeUndefined()
+    expect(env.CLAUDE_CODE_USE_QWEN).toBeUndefined()
     expect(env.CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED).toBeUndefined()
     expect(env.CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED_ID).toBeUndefined()
 
@@ -89,6 +91,7 @@ describe('onboarding auth precedence cleanup', () => {
     expect(settingsEnv.OPENAI_ORG).toBeUndefined()
     expect(settingsEnv.OPENAI_PROJECT).toBeUndefined()
     expect(settingsEnv.OPENAI_ORGANIZATION).toBeUndefined()
+    expect(settingsEnv.CLAUDE_CODE_USE_QWEN).toBeUndefined()
   })
 })
 

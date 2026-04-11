@@ -400,6 +400,7 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
     const { error } = updateSettingsForSource('userSettings', {
       env: {
         CLAUDE_CODE_USE_OPENAI: undefined as any,
+        CLAUDE_CODE_USE_QWEN: undefined as any,
         CLAUDE_CODE_USE_GEMINI: undefined as any,
         CLAUDE_CODE_USE_GITHUB: undefined as any,
         CLAUDE_CODE_USE_BEDROCK: undefined as any,
@@ -426,6 +427,7 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
         OPENAI_BASE_URL: undefined as any,
         OPENAI_API_BASE: undefined as any,
         CLAUDE_CODE_USE_OPENAI: undefined as any,
+        CLAUDE_CODE_USE_QWEN: undefined as any,
         CLAUDE_CODE_USE_GEMINI: undefined as any,
         CLAUDE_CODE_USE_BEDROCK: undefined as any,
         CLAUDE_CODE_USE_VERTEX: undefined as any,
@@ -445,6 +447,7 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
     delete process.env.OPENAI_BASE_URL
     delete process.env.OPENAI_API_BASE
     delete process.env.CLAUDE_CODE_USE_OPENAI
+    delete process.env.CLAUDE_CODE_USE_QWEN
     delete process.env.CLAUDE_CODE_USE_GEMINI
     delete process.env.CLAUDE_CODE_USE_BEDROCK
     delete process.env.CLAUDE_CODE_USE_VERTEX

@@ -257,6 +257,7 @@ function hasProviderSelectionFlags(
 ): boolean {
   return (
     processEnv.CLAUDE_CODE_USE_OPENAI !== undefined ||
+    processEnv.CLAUDE_CODE_USE_QWEN !== undefined ||
     processEnv.CLAUDE_CODE_USE_GEMINI !== undefined ||
     processEnv.CLAUDE_CODE_USE_GITHUB !== undefined ||
     processEnv.CLAUDE_CODE_USE_BEDROCK !== undefined ||
@@ -274,6 +275,7 @@ function hasConflictingProviderFlagsForProfile(
   }
 
   return (
+    processEnv.CLAUDE_CODE_USE_QWEN !== undefined ||
     processEnv.CLAUDE_CODE_USE_GEMINI !== undefined ||
     processEnv.CLAUDE_CODE_USE_GITHUB !== undefined ||
     processEnv.CLAUDE_CODE_USE_BEDROCK !== undefined ||
@@ -318,6 +320,7 @@ function isProcessEnvAlignedWithProfile(
 
   return (
     processEnv.CLAUDE_CODE_USE_OPENAI !== undefined &&
+    processEnv.CLAUDE_CODE_USE_QWEN === undefined &&
     processEnv.CLAUDE_CODE_USE_GEMINI === undefined &&
     processEnv.CLAUDE_CODE_USE_GITHUB === undefined &&
     processEnv.CLAUDE_CODE_USE_BEDROCK === undefined &&
@@ -346,6 +349,7 @@ export function clearProviderProfileEnvFromProcessEnv(
   processEnv: NodeJS.ProcessEnv = process.env,
 ): void {
   delete processEnv.CLAUDE_CODE_USE_OPENAI
+  delete processEnv.CLAUDE_CODE_USE_QWEN
   delete processEnv.CLAUDE_CODE_USE_GEMINI
   delete processEnv.CLAUDE_CODE_USE_GITHUB
   delete processEnv.CLAUDE_CODE_USE_BEDROCK

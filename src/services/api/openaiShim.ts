@@ -27,6 +27,10 @@ import { resolveGeminiCredential } from '../../utils/geminiAuth.js'
 import { hydrateGeminiAccessTokenFromSecureStorage } from '../../utils/geminiCredentials.js'
 import { hydrateGithubModelsTokenFromSecureStorage } from '../../utils/githubModelsCredentials.js'
 import {
+  getValidQwenAccessContext,
+  primeQwenStoredCredentialsFromCliCache,
+} from '../../utils/qwenCredentials.js'
+import {
   codexStreamToAnthropic,
   collectCodexCompletedResponse,
   convertCodexResponseToAnthropicMessage,
@@ -70,6 +74,10 @@ const GEMINI_API_HOST = 'generativelanguage.googleapis.com'
 
 function isGithubModelsMode(): boolean {
   return isEnvTruthy(process.env.CLAUDE_CODE_USE_GITHUB)
+}
+
+function isQwenMode(): boolean {
+  return isEnvTruthy(process.env.CLAUDE_CODE_USE_QWEN)
 }
 
 function hasGeminiApiHost(baseUrl: string | undefined): boolean {
@@ -451,10 +459,19 @@ function normalizeSchemaForOpenAI(
   return record
 }
 
+function normalizeSchemaForQwen(
+  schema: Record<string, unknown>,
+): Record<string, unknown> {
+  const record = normalizeSchemaForOpenAI(schema, false)
+  record.$schema = 'http://json-schema.org/draft-07/schema#'
+  return record
+}
+
 function convertTools(
   tools: Array<{ name: string; description?: string; input_schema?: Record<string, unknown> }>,
 ): OpenAITool[] {
   const isGemini = isGeminiMode()
+  const isQwen = isQwenMode()
 
   return tools
     .filter(t => t.name !== 'ToolSearchTool') // Not relevant for OpenAI
@@ -477,7 +494,9 @@ function convertTools(
         function: {
           name: t.name,
           description: t.description ?? '',
-          parameters: normalizeSchemaForOpenAI(schema, !isGemini),
+          parameters: isQwen
+            ? normalizeSchemaForQwen(schema)
+            : normalizeSchemaForOpenAI(schema, !isGemini),
         },
       }
     })
@@ -943,8 +962,17 @@ class OpenAIShimMessages {
     let httpResponse: Response | undefined
 
     const promise = (async () => {
+      const qwenContext = isEnvTruthy(process.env.CLAUDE_CODE_USE_QWEN)
+        ? await getValidQwenAccessContext({ model: params.model })
+        : null
       const runtimeProviderOverride: RequestProviderOverride | undefined =
-        self.providerOverride
+        qwenContext
+          ? {
+              model: qwenContext.model,
+              baseURL: qwenContext.baseUrl,
+              apiKey: qwenContext.accessToken,
+            }
+          : self.providerOverride
       const request = resolveProviderRequest({ model: runtimeProviderOverride?.model ?? params.model, baseUrl: runtimeProviderOverride?.baseURL, reasoningEffortOverride: self.reasoningEffort })
       const response = await self._doRequest(request, params, options, runtimeProviderOverride)
       httpResponse = response
@@ -1064,7 +1092,12 @@ class OpenAIShimMessages {
     }
 
     const isGithub = isGithubModelsMode()
+    const isQwen = isQwenMode()
     if (isGithub && body.max_completion_tokens !== undefined) {
+      body.max_tokens = body.max_completion_tokens
+      delete body.max_completion_tokens
+    }
+    if (isQwen && body.max_completion_tokens !== undefined) {
       body.max_tokens = body.max_completion_tokens
       delete body.max_completion_tokens
     }
@@ -1138,6 +1171,12 @@ class OpenAIShimMessages {
     if (isGithub) {
       headers.Accept = 'application/vnd.github.v3+json'
       headers['X-GitHub-Api-Version'] = GITHUB_API_VERSION
+    }
+
+    if (isQwen) {
+      headers['X-DashScope-CacheControl'] = 'enable'
+      headers['X-DashScope-UserAgent'] = `QwenCode/OpenClaude (${process.platform}; ${process.arch})`
+      headers['X-DashScope-AuthType'] = 'qwen-oauth'
     }
 
     // Build the chat completions URL
@@ -1343,6 +1382,7 @@ export function createOpenAIShimClient(options: {
 }): unknown {
   hydrateGeminiAccessTokenFromSecureStorage()
   hydrateGithubModelsTokenFromSecureStorage()
+  primeQwenStoredCredentialsFromCliCache()
 
   // When Gemini provider is active, map Gemini env vars to OpenAI-compatible ones
   // so the existing providerConfig.ts infrastructure picks them up correctly.
@@ -1362,6 +1402,8 @@ export function createOpenAIShimClient(options: {
     process.env.OPENAI_BASE_URL ??= GITHUB_MODELS_DEFAULT_BASE
     process.env.OPENAI_API_KEY ??=
       process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? ''
+  } else if (isEnvTruthy(process.env.CLAUDE_CODE_USE_QWEN)) {
+    process.env.OPENAI_MODEL ??= 'coder-model'
   }
 
   const beta = new OpenAIShimBeta({

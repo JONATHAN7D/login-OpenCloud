@@ -10,6 +10,7 @@ export type APIProvider =
   | 'openai'
   | 'gemini'
   | 'github'
+  | 'qwen'
   | 'codex'
 
 export function getAPIProvider(): APIProvider {
@@ -17,6 +18,8 @@ export function getAPIProvider(): APIProvider {
     ? 'gemini'
     : isEnvTruthy(process.env.CLAUDE_CODE_USE_GITHUB)
       ? 'github'
+      : isEnvTruthy(process.env.CLAUDE_CODE_USE_QWEN)
+        ? 'qwen'
       : isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI)
         ? isCodexModel()
           ? 'codex'

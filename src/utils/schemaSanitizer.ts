@@ -33,6 +33,15 @@ function stripSchemaKeywords(schema: unknown, keywords: Set<string>): unknown {
 
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(schema)) {
+    if (key === 'properties' && isSchemaRecord(value)) {
+      const sanitizedProperties: Record<string, unknown> = {}
+      for (const [propName, propSchema] of Object.entries(value)) {
+        sanitizedProperties[propName] = stripSchemaKeywords(propSchema, keywords)
+      }
+      result[key] = sanitizedProperties
+      continue
+    }
+
     if (keywords.has(key)) {
       continue
     }

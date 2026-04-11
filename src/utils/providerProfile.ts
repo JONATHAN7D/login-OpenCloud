@@ -419,6 +419,7 @@ export function hasExplicitProviderSelection(
 
   return (
     processEnv.CLAUDE_CODE_USE_OPENAI !== undefined ||
+    processEnv.CLAUDE_CODE_USE_QWEN !== undefined ||
     processEnv.CLAUDE_CODE_USE_GITHUB !== undefined ||
     processEnv.CLAUDE_CODE_USE_GEMINI !== undefined ||
     processEnv.CLAUDE_CODE_USE_BEDROCK !== undefined ||

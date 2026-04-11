@@ -77,6 +77,8 @@ async function main(): Promise<void> {
     hydrateGeminiAccessTokenFromSecureStorage()
     const { hydrateGithubModelsTokenFromSecureStorage } = await import('../utils/githubModelsCredentials.js')
     hydrateGithubModelsTokenFromSecureStorage()
+    const { primeQwenStoredCredentialsFromCliCache } = await import('../utils/qwenCredentials.js')
+    primeQwenStoredCredentialsFromCliCache()
   }
 
   const startupEnv = await buildStartupEnvFromProfile({

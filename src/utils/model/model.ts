@@ -6,6 +6,7 @@
  * during dead code elimination
  */
 import { getMainLoopModelOverride } from '../../bootstrap/state.js'
+import { DEFAULT_QWEN_MODEL } from '../qwenCredentials.js'
 import {
   getSubscriptionType,
   isClaudeAISubscriber,
@@ -38,6 +39,9 @@ export function getSmallFastModel(): ModelName {
   // For Gemini provider, use a fast model
   if (getAPIProvider() === 'gemini') {
     return process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite'
+  }
+  if (getAPIProvider() === 'qwen') {
+    return process.env.OPENAI_MODEL || DEFAULT_QWEN_MODEL
   }
   // For OpenAI provider, use OPENAI_MODEL or a sensible default
   if (getAPIProvider() === 'openai') {
@@ -80,7 +84,7 @@ export function getUserSpecifiedModelSetting(): ModelSetting | undefined {
     const provider = getAPIProvider()
     specifiedModel =
       (provider === 'gemini' ? process.env.GEMINI_MODEL : undefined) ||
-      (provider === 'openai' || provider === 'gemini' || provider === 'github'
+      (provider === 'openai' || provider === 'gemini' || provider === 'github' || provider === 'qwen'
         ? process.env.OPENAI_MODEL
         : undefined) ||
       (provider === 'firstParty' ? process.env.ANTHROPIC_MODEL : undefined) ||
@@ -133,6 +137,9 @@ export function getDefaultOpusModel(): ModelName {
   if (getAPIProvider() === 'openai') {
     return process.env.OPENAI_MODEL || 'gpt-4o'
   }
+  if (getAPIProvider() === 'qwen') {
+    return process.env.OPENAI_MODEL || DEFAULT_QWEN_MODEL
+  }
   // Codex provider: use user-specified model or default to gpt-5.4
   if (getAPIProvider() === 'codex') {
     return process.env.OPENAI_MODEL || 'gpt-5.4'
@@ -159,6 +166,9 @@ export function getDefaultSonnetModel(): ModelName {
   if (getAPIProvider() === 'openai') {
     return process.env.OPENAI_MODEL || 'gpt-4o'
   }
+  if (getAPIProvider() === 'qwen') {
+    return process.env.OPENAI_MODEL || DEFAULT_QWEN_MODEL
+  }
   // Codex provider
   if (getAPIProvider() === 'codex') {
     return process.env.OPENAI_MODEL || 'gpt-5.4'
@@ -182,6 +192,9 @@ export function getDefaultHaikuModel(): ModelName {
   // OpenAI provider
   if (getAPIProvider() === 'openai') {
     return process.env.OPENAI_MODEL || 'gpt-4o-mini'
+  }
+  if (getAPIProvider() === 'qwen') {
+    return process.env.OPENAI_MODEL || DEFAULT_QWEN_MODEL
   }
   // Codex provider
   if (getAPIProvider() === 'codex') {
@@ -238,6 +251,9 @@ export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
   // OpenAI provider: always use the configured OpenAI model
   if (getAPIProvider() === 'openai') {
     return process.env.OPENAI_MODEL || 'gpt-4o'
+  }
+  if (getAPIProvider() === 'qwen') {
+    return process.env.OPENAI_MODEL || DEFAULT_QWEN_MODEL
   }
   // GitHub provider: always use the configured GitHub model
   if (getAPIProvider() === 'github') {

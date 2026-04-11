@@ -24,6 +24,7 @@ import { formatDuration } from '../../utils/format.js';
 import { setEnvHookNotifier } from '../../utils/hooks/fileChangedWatcher.js';
 import { toIDEDisplayName } from '../../utils/ide.js';
 import { getMessagesAfterCompactBoundary } from '../../utils/messages.js';
+import { getAPIProvider } from '../../utils/model/providers.js';
 import { tokenCountFromLastAPIResponse } from '../../utils/tokens.js';
 import { AutoUpdaterWrapper } from '../AutoUpdaterWrapper.js';
 import { ConfigurableShortcutHint } from '../ConfigurableShortcutHint.js';
@@ -91,6 +92,7 @@ export function Notifications(t0) {
     t4 = $[4];
   }
   const isShowingCompactMessage = t4.isAboveWarningThreshold;
+  const shouldShowClaudeLoginWarning = getAPIProvider() !== 'qwen';
   const {
     status: ideStatus
   } = useIdeConnectionStatus(mcpClients);
@@ -303,7 +305,7 @@ function NotificationContent({
             ({apiKeyHelperSlow})
           </Text>
         </Box>}
-      {(apiKeyStatus === 'invalid' || apiKeyStatus === 'missing') && <Box>
+      {shouldShowClaudeLoginWarning && (apiKeyStatus === 'invalid' || apiKeyStatus === 'missing') && <Box>
           <Text color="error" wrap="truncate">
             {isEnvTruthy(process.env.CLAUDE_CODE_REMOTE) ? 'Authentication error · Try again' : 'Not logged in · Run /login'}
           </Text>

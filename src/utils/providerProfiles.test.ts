@@ -12,6 +12,7 @@ const RESTORED_KEYS = [
   'CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED',
   'CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED_ID',
   'CLAUDE_CODE_USE_OPENAI',
+  'CLAUDE_CODE_USE_QWEN',
   'CLAUDE_CODE_USE_GEMINI',
   'CLAUDE_CODE_USE_GITHUB',
   'CLAUDE_CODE_USE_BEDROCK',
@@ -188,6 +189,28 @@ describe('applyActiveProviderProfileFromConfig', () => {
     expect(String(process.env.CLAUDE_CODE_USE_OPENAI)).toBe('1')
     expect(process.env.OPENAI_BASE_URL).toBe('http://localhost:11434/v1')
     expect(process.env.OPENAI_MODEL).toBe('qwen2.5:3b')
+  })
+
+  test('does not override explicit Qwen startup selection', async () => {
+    const { applyActiveProviderProfileFromConfig } =
+      await importFreshProviderProfileModules()
+    process.env.CLAUDE_CODE_USE_QWEN = '1'
+    process.env.OPENAI_MODEL = 'coder-model'
+
+    const applied = applyActiveProviderProfileFromConfig({
+      providerProfiles: [
+        buildProfile({
+          id: 'saved_openai',
+          baseUrl: 'https://api.openai.com/v1',
+          model: 'gpt-4o',
+        }),
+      ],
+      activeProviderProfileId: 'saved_openai',
+    } as any)
+
+    expect(applied).toBeUndefined()
+    expect(process.env.CLAUDE_CODE_USE_QWEN).toBe('1')
+    expect(process.env.OPENAI_MODEL).toBe('coder-model')
   })
 
   test('re-applies active profile when profile-managed env drifts', async () => {

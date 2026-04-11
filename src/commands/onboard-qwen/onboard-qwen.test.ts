@@ -1,82 +1,90 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
-  activateChatGPTOnboardingMode,
-  applyChatGPTOnboardingProcessEnv,
-  buildChatGPTOnboardingSettingsEnv,
-  hasExistingChatGPTLogin,
-  shouldForceChatGPTRelogin,
-} from './onboard-chatgpt.js'
+  activateQwenOnboardingMode,
+  applyQwenOnboardingProcessEnv,
+  buildQwenOnboardingSettingsEnv,
+  shouldOfferExistingQwenLoginChoice,
+  shouldForceQwenRelogin,
+} from './onboard-qwen.js'
 
-describe('shouldForceChatGPTRelogin', () => {
+describe('shouldForceQwenRelogin', () => {
   test.each(['force', '--force', 'relogin', '--relogin', 'reauth', '--reauth'])(
     'treats %s as force re-login',
     arg => {
-      expect(shouldForceChatGPTRelogin(arg)).toBe(true)
+      expect(shouldForceQwenRelogin(arg)).toBe(true)
     },
   )
 
   test('returns false for empty or unknown args', () => {
-    expect(shouldForceChatGPTRelogin('')).toBe(false)
-    expect(shouldForceChatGPTRelogin(undefined)).toBe(false)
-    expect(shouldForceChatGPTRelogin('something-else')).toBe(false)
+    expect(shouldForceQwenRelogin('')).toBe(false)
+    expect(shouldForceQwenRelogin(undefined)).toBe(false)
+    expect(shouldForceQwenRelogin('something-else')).toBe(false)
   })
 })
 
-describe('hasExistingChatGPTLogin', () => {
-  test('returns true when CODEX_API_KEY and account are present', () => {
+describe('shouldOfferExistingQwenLoginChoice', () => {
+  test('returns true only when credentials already exist and force is off', () => {
     expect(
-      hasExistingChatGPTLogin({
-        CODEX_API_KEY: 'header.eyJjaGF0Z3B0X2FjY291bnRfaWQiOiJhY2N0LTEyMyJ9.sig',
+      shouldOfferExistingQwenLoginChoice({
+        hasExistingLogin: true,
+        forceRelogin: false,
       }),
     ).toBe(true)
-  })
 
-  test('returns false when account id is missing', () => {
-    expect(hasExistingChatGPTLogin({ CODEX_API_KEY: 'token-without-account' })).toBe(false)
+    expect(
+      shouldOfferExistingQwenLoginChoice({
+        hasExistingLogin: true,
+        forceRelogin: true,
+      }),
+    ).toBe(false)
+
+    expect(
+      shouldOfferExistingQwenLoginChoice({
+        hasExistingLogin: false,
+        forceRelogin: false,
+      }),
+    ).toBe(false)
   })
 })
 
-describe('chatgpt onboarding auth precedence cleanup', () => {
-  test('clears incompatible provider state when switching to Codex', () => {
+describe('qwen onboarding auth precedence cleanup', () => {
+  test('clears incompatible provider state when switching to Qwen', () => {
     const env: NodeJS.ProcessEnv = {
-      CLAUDE_CODE_USE_QWEN: '1',
       CLAUDE_CODE_USE_GITHUB: '1',
       GITHUB_TOKEN: 'gh-token',
       OPENAI_MODEL: 'github:copilot',
       OPENAI_API_KEY: 'sk-stale-openai-key',
+      OPENAI_BASE_URL: 'https://api.openai.com/v1',
       CODEX_API_KEY: 'stale-codex-key',
       CHATGPT_ACCOUNT_ID: 'acct-old',
       CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED: '1',
       CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED_ID: 'profile_old',
     }
 
-    applyChatGPTOnboardingProcessEnv('codexplan', env)
+    applyQwenOnboardingProcessEnv('coder-model', env)
 
-    expect(env.CLAUDE_CODE_USE_OPENAI).toBe('1')
-    expect(env.OPENAI_BASE_URL).toBe('https://chatgpt.com/backend-api/codex')
-    expect(env.OPENAI_MODEL).toBe('codexplan')
+    expect(env.CLAUDE_CODE_USE_QWEN).toBe('1')
+    expect(env.OPENAI_MODEL).toBe('coder-model')
+    expect(env.OPENAI_BASE_URL).toBeUndefined()
     expect(env.OPENAI_API_KEY).toBeUndefined()
     expect(env.CODEX_API_KEY).toBeUndefined()
     expect(env.CHATGPT_ACCOUNT_ID).toBeUndefined()
-    expect(env.CLAUDE_CODE_USE_QWEN).toBeUndefined()
     expect(env.CLAUDE_CODE_USE_GITHUB).toBeUndefined()
     expect(env.CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED).toBeUndefined()
 
-    const settingsEnv = buildChatGPTOnboardingSettingsEnv('codexplan')
-    expect(settingsEnv.CLAUDE_CODE_USE_OPENAI).toBe('1')
-    expect(settingsEnv.OPENAI_BASE_URL).toBe('https://chatgpt.com/backend-api/codex')
-    expect(settingsEnv.OPENAI_MODEL).toBe('codexplan')
-    expect(settingsEnv.CLAUDE_CODE_USE_QWEN).toBeUndefined()
-    expect(settingsEnv.CODEX_API_KEY).toBeUndefined()
+    const settingsEnv = buildQwenOnboardingSettingsEnv('coder-model')
+    expect(settingsEnv.CLAUDE_CODE_USE_QWEN).toBe('1')
+    expect(settingsEnv.OPENAI_MODEL).toBe('coder-model')
+    expect(settingsEnv.OPENAI_BASE_URL).toBeUndefined()
   })
 })
 
-describe('activateChatGPTOnboardingMode', () => {
+describe('activateQwenOnboardingMode', () => {
   test('activates settings/env in order when merge succeeds', () => {
     const calls: string[] = []
 
-    const result = activateChatGPTOnboardingMode('  codexplan  ', {
+    const result = activateQwenOnboardingMode('  coder-model  ', {
       mergeSettingsEnv: model => {
         calls.push(`merge:${model}`)
         return { ok: true }
@@ -91,8 +99,8 @@ describe('activateChatGPTOnboardingMode', () => {
 
     expect(result).toEqual({ ok: true })
     expect(calls).toEqual([
-      'merge:codexplan',
-      'apply:codexplan',
+      'merge:coder-model',
+      'apply:coder-model',
       'onChangeAPIKey',
     ])
   })
@@ -100,7 +108,7 @@ describe('activateChatGPTOnboardingMode', () => {
   test('stops activation when settings merge fails', () => {
     const calls: string[] = []
 
-    const result = activateChatGPTOnboardingMode('codexplan', {
+    const result = activateQwenOnboardingMode('coder-model', {
       mergeSettingsEnv: () => {
         calls.push('merge')
         return { ok: false, detail: 'settings write failed' }
