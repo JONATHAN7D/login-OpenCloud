@@ -3,7 +3,6 @@ import { afterEach, expect, test } from 'bun:test'
 const originalEnv = {
   CLAUDE_CODE_USE_GEMINI: process.env.CLAUDE_CODE_USE_GEMINI,
   CLAUDE_CODE_USE_GITHUB: process.env.CLAUDE_CODE_USE_GITHUB,
-  CLAUDE_CODE_USE_QWEN: process.env.CLAUDE_CODE_USE_QWEN,
   CLAUDE_CODE_USE_OPENAI: process.env.CLAUDE_CODE_USE_OPENAI,
   CLAUDE_CODE_USE_BEDROCK: process.env.CLAUDE_CODE_USE_BEDROCK,
   CLAUDE_CODE_USE_VERTEX: process.env.CLAUDE_CODE_USE_VERTEX,
@@ -16,7 +15,6 @@ const originalEnv = {
 afterEach(() => {
   process.env.CLAUDE_CODE_USE_GEMINI = originalEnv.CLAUDE_CODE_USE_GEMINI
   process.env.CLAUDE_CODE_USE_GITHUB = originalEnv.CLAUDE_CODE_USE_GITHUB
-  process.env.CLAUDE_CODE_USE_QWEN = originalEnv.CLAUDE_CODE_USE_QWEN
   process.env.CLAUDE_CODE_USE_OPENAI = originalEnv.CLAUDE_CODE_USE_OPENAI
   process.env.CLAUDE_CODE_USE_BEDROCK = originalEnv.CLAUDE_CODE_USE_BEDROCK
   process.env.CLAUDE_CODE_USE_VERTEX = originalEnv.CLAUDE_CODE_USE_VERTEX
@@ -33,7 +31,6 @@ async function importFreshProvidersModule() {
 function clearProviderEnv(): void {
   delete process.env.CLAUDE_CODE_USE_GEMINI
   delete process.env.CLAUDE_CODE_USE_GITHUB
-  delete process.env.CLAUDE_CODE_USE_QWEN
   delete process.env.CLAUDE_CODE_USE_OPENAI
   delete process.env.CLAUDE_CODE_USE_BEDROCK
   delete process.env.CLAUDE_CODE_USE_VERTEX
@@ -56,7 +53,6 @@ test('first-party provider keeps Anthropic account setup flow enabled', () => {
 test.each([
   ['CLAUDE_CODE_USE_OPENAI', 'openai'],
   ['CLAUDE_CODE_USE_GITHUB', 'github'],
-  ['CLAUDE_CODE_USE_QWEN', 'qwen'],
   ['CLAUDE_CODE_USE_GEMINI', 'gemini'],
   ['CLAUDE_CODE_USE_BEDROCK', 'bedrock'],
   ['CLAUDE_CODE_USE_VERTEX', 'vertex'],

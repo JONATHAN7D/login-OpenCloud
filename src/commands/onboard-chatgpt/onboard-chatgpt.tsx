@@ -62,7 +62,6 @@ export function buildChatGPTOnboardingSettingsEnv(
     CODEX_API_KEY: undefined,
     CHATGPT_ACCOUNT_ID: undefined,
     CODEX_ACCOUNT_ID: undefined,
-    CLAUDE_CODE_USE_QWEN: undefined,
     CLAUDE_CODE_USE_GITHUB: undefined,
     CLAUDE_CODE_USE_GEMINI: undefined,
     CLAUDE_CODE_USE_BEDROCK: undefined,
@@ -89,8 +88,6 @@ export function applyChatGPTOnboardingProcessEnv(
   delete env.CODEX_API_KEY
   delete env.CHATGPT_ACCOUNT_ID
   delete env.CODEX_ACCOUNT_ID
-
-  delete env.CLAUDE_CODE_USE_QWEN
   delete env.CLAUDE_CODE_USE_GITHUB
   delete env.CLAUDE_CODE_USE_GEMINI
   delete env.CLAUDE_CODE_USE_BEDROCK

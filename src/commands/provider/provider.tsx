@@ -24,7 +24,6 @@ import {
   buildGeminiProfileEnv,
   buildOllamaProfileEnv,
   buildOpenAIProfileEnv,
-  buildQwenProfileEnv,
   createProfileFile,
   DEFAULT_GEMINI_BASE_URL,
   DEFAULT_GEMINI_MODEL,
@@ -62,12 +61,6 @@ import {
 } from '../../utils/providerDiscovery.js'
 import { getCommandName } from '../../types/command.js'
 import onboardChatGPT from '../onboard-chatgpt/index.js'
-import onboardQwen from '../onboard-qwen/index.js'
-import {
-  DEFAULT_QWEN_MODEL,
-  getQwenCredentialSource,
-  resolveQwenCliCredentialPath,
-} from '../../utils/qwenCredentials.js'
 
 type ProviderChoice = 'auto' | ProviderProfile | 'clear'
 
@@ -93,7 +86,6 @@ type Step =
       authMode: 'api-key' | 'access-token' | 'adc'
     }
   | { name: 'codex-check' }
-  | { name: 'qwen-model' }
 
 type CurrentProviderSummary = {
   providerLabel: string
@@ -183,21 +175,6 @@ export function buildCurrentProviderSummary(options?: {
       ),
       endpointLabel: getSafeDisplayValue(
         processEnv.GEMINI_BASE_URL ?? DEFAULT_GEMINI_BASE_URL,
-        processEnv,
-      ),
-      savedProfileLabel,
-    }
-  }
-
-  if (isEnvTruthy(processEnv.CLAUDE_CODE_USE_QWEN)) {
-    return {
-      providerLabel: 'Qwen',
-      modelLabel: getSafeDisplayValue(
-        processEnv.OPENAI_MODEL ?? DEFAULT_QWEN_MODEL,
-        processEnv,
-      ),
-      endpointLabel: getSafeDisplayValue(
-        processEnv.OPENAI_BASE_URL ?? 'dynamic via Qwen OAuth',
         processEnv,
       ),
       savedProfileLabel,
@@ -303,21 +280,6 @@ function buildSavedProfileSummary(
             ? 'configured'
             : undefined,
       }
-    case 'qwen':
-      return {
-        providerLabel: 'Qwen',
-        modelLabel: getSafeDisplayValue(
-          env.OPENAI_MODEL ?? DEFAULT_QWEN_MODEL,
-          process.env,
-          env,
-        ),
-        endpointLabel: getSafeDisplayValue(
-          env.OPENAI_BASE_URL ?? 'dynamic via Qwen OAuth',
-          process.env,
-          env,
-        ),
-        credentialLabel: 'Qwen OAuth (stored securely)',
-      }
     case 'ollama':
       return {
         providerLabel: 'Ollama',
@@ -393,7 +355,7 @@ function buildUsageText(): string {
     `Current endpoint: ${summary.endpointLabel}`,
     `Saved profile: ${summary.savedProfileLabel}`,
     '',
-    'Choose Auto, Ollama, OpenAI-compatible, Gemini, Qwen, or Codex, then save a profile for the next OpenClaude restart.',
+    'Choose Auto, Ollama, OpenAI-compatible, Gemini, or Codex, then save a profile for the next OpenClaude restart.',
   ].join('\n')
 }
 
@@ -513,12 +475,6 @@ function ProviderChooser({
       label: 'Gemini',
       value: 'gemini',
       description: 'Use Google Gemini with API key, access token, or local ADC',
-    },
-    {
-      label: 'Qwen',
-      value: 'qwen',
-      description:
-        'Use Qwen OAuth via the official qwen browser login. Sign in with /onboard-qwen if needed',
     },
     {
       label: 'Codex',
@@ -996,78 +952,6 @@ function resolveCodexCredentials(processEnv: NodeJS.ProcessEnv):
   }
 }
 
-function resolveQwenCredentials(processEnv: NodeJS.ProcessEnv):
-  | { ok: true; sourceDescription: string }
-  | { ok: false; message: string } {
-  const source = getQwenCredentialSource(processEnv)
-  if (source === 'none') {
-    return {
-      ok: false,
-      message:
-        `Qwen setup needs existing credentials. Run /${getCommandName(onboardQwen)} to sign in with the browser first. Expected CLI cache: ${resolveQwenCliCredentialPath(processEnv)}.`,
-    }
-  }
-
-  return {
-    ok: true,
-    sourceDescription:
-      source === 'stored'
-        ? 'OpenClaude secure storage'
-        : resolveQwenCliCredentialPath(processEnv),
-  }
-}
-
-function QwenCredentialStep({
-  onSave,
-  onBack,
-  onCancel,
-}: {
-  onSave: (profile: ProviderProfile, env: ProfileEnv) => void
-  onBack: () => void
-  onCancel: () => void
-}): React.ReactNode {
-  const credentials = resolveQwenCredentials(process.env)
-
-  if (!credentials.ok) {
-    const message = credentials.message
-    return (
-      <Dialog title="Qwen setup" onCancel={onCancel} color="warning">
-        <Box flexDirection="column" gap={1}>
-          <Text>{message}</Text>
-          <Select
-            options={[
-              { label: 'Back', value: 'back' },
-              { label: 'Cancel', value: 'cancel' },
-            ]}
-            onChange={value => (value === 'back' ? onBack() : onCancel())}
-            onCancel={onCancel}
-          />
-        </Box>
-      </Dialog>
-    )
-  }
-
-  return (
-    <TextEntryDialog
-      resetStateKey="qwen-model"
-      title="Qwen setup"
-      subtitle="Step 1 of 1"
-      description={`Reuse existing Qwen OAuth credentials from ${credentials.sourceDescription}. Leave blank for ${DEFAULT_QWEN_MODEL}.`}
-      initialValue={DEFAULT_QWEN_MODEL}
-      placeholder={DEFAULT_QWEN_MODEL}
-      allowEmpty
-      onSubmit={value => {
-        const env = buildQwenProfileEnv({
-          model: value.trim() || DEFAULT_QWEN_MODEL,
-          processEnv: {},
-        })
-        onSave('qwen', env)
-      }}
-      onCancel={onBack}
-    />
-  )
-}
-
 export function ProviderWizard({
   onDone,
 }: {
@@ -1092,8 +976,6 @@ export function ProviderWizard({
               })
             } else if (value === 'gemini') {
               setStep({ name: 'gemini-auth-method' })
-            } else if (value === 'qwen') {
-              setStep({ name: 'qwen-model' })
             } else if (value === 'clear') {
               const filePath = deleteProfileFile()
               onDone(`Removed saved provider profile at ${filePath}. Restart OpenClaude to go back to normal startup.`, {
@@ -1429,15 +1311,6 @@ export function ProviderWizard({
     case 'codex-check':
       return (
         <CodexCredentialStep
-          onSave={(profile, env) => finishProfileSave(onDone, profile, env)}
-          onBack={() => setStep({ name: 'choose' })}
-          onCancel={() => onDone()}
-        />
-      )
-
-    case 'qwen-model':
-      return (
-        <QwenCredentialStep
           onSave={(profile, env) => finishProfileSave(onDone, profile, env)}
           onBack={() => setStep({ name: 'choose' })}
           onCancel={() => onDone()}

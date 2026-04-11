@@ -66,7 +66,6 @@ export function buildGithubOnboardingSettingsEnv(
     OPENAI_BASE_URL: undefined,
     OPENAI_API_BASE: undefined,
     CLAUDE_CODE_USE_OPENAI: undefined,
-    CLAUDE_CODE_USE_QWEN: undefined,
     CLAUDE_CODE_USE_GEMINI: undefined,
     CLAUDE_CODE_USE_BEDROCK: undefined,
     CLAUDE_CODE_USE_VERTEX: undefined,
@@ -89,7 +88,6 @@ export function applyGithubOnboardingProcessEnv(
   delete env.OPENAI_API_BASE
 
   delete env.CLAUDE_CODE_USE_OPENAI
-  delete env.CLAUDE_CODE_USE_QWEN
   delete env.CLAUDE_CODE_USE_GEMINI
   delete env.CLAUDE_CODE_USE_BEDROCK
   delete env.CLAUDE_CODE_USE_VERTEX

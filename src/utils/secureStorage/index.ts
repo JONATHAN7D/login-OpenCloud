@@ -25,13 +25,6 @@ export interface SecureStorageData {
   >
   mcpOAuthClientConfig?: Record<string, { clientSecret: string }>
   trustedDeviceToken?: string
-  qwenOAuth?: {
-    accessToken: string
-    refreshToken?: string
-    expiresAt?: number
-    resourceUrl?: string
-    tokenType?: string
-  }
   pluginSecrets?: Record<string, Record<string, string>>
 }
 

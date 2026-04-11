@@ -27,10 +27,6 @@ import { resolveGeminiCredential } from '../../utils/geminiAuth.js'
 import { hydrateGeminiAccessTokenFromSecureStorage } from '../../utils/geminiCredentials.js'
 import { hydrateGithubModelsTokenFromSecureStorage } from '../../utils/githubModelsCredentials.js'
 import {
-  getValidQwenAccessContext,
-  primeQwenStoredCredentialsFromCliCache,
-} from '../../utils/qwenCredentials.js'
-import {
   codexStreamToAnthropic,
   collectCodexCompletedResponse,
   convertCodexResponseToAnthropicMessage,
@@ -947,17 +943,8 @@ class OpenAIShimMessages {
     let httpResponse: Response | undefined
 
     const promise = (async () => {
-      const qwenContext = isEnvTruthy(process.env.CLAUDE_CODE_USE_QWEN)
-        ? await getValidQwenAccessContext({ model: params.model })
-        : null
       const runtimeProviderOverride: RequestProviderOverride | undefined =
-        qwenContext
-          ? {
-              model: qwenContext.model,
-              baseURL: qwenContext.baseUrl,
-              apiKey: qwenContext.accessToken,
-            }
-          : self.providerOverride
+        self.providerOverride
       const request = resolveProviderRequest({ model: runtimeProviderOverride?.model ?? params.model, baseUrl: runtimeProviderOverride?.baseURL, reasoningEffortOverride: self.reasoningEffort })
       const response = await self._doRequest(request, params, options, runtimeProviderOverride)
       httpResponse = response
@@ -1356,7 +1343,6 @@ export function createOpenAIShimClient(options: {
 }): unknown {
   hydrateGeminiAccessTokenFromSecureStorage()
   hydrateGithubModelsTokenFromSecureStorage()
-  primeQwenStoredCredentialsFromCliCache()
 
   // When Gemini provider is active, map Gemini env vars to OpenAI-compatible ones
   // so the existing providerConfig.ts infrastructure picks them up correctly.
@@ -1376,8 +1362,6 @@ export function createOpenAIShimClient(options: {
     process.env.OPENAI_BASE_URL ??= GITHUB_MODELS_DEFAULT_BASE
     process.env.OPENAI_API_KEY ??=
       process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? ''
-  } else if (isEnvTruthy(process.env.CLAUDE_CODE_USE_QWEN)) {
-    process.env.OPENAI_MODEL ??= 'coder-model'
   }
 
   const beta = new OpenAIShimBeta({

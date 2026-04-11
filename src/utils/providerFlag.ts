@@ -14,7 +14,6 @@
 export const VALID_PROVIDERS = [
   'anthropic',
   'openai',
-  'qwen',
   'gemini',
   'github',
   'bedrock',
@@ -87,11 +86,6 @@ export function applyProviderFlag(
 
     case 'openai':
       process.env.CLAUDE_CODE_USE_OPENAI = '1'
-      if (model) process.env.OPENAI_MODEL ??= model
-      break
-
-    case 'qwen':
-      process.env.CLAUDE_CODE_USE_QWEN = '1'
       if (model) process.env.OPENAI_MODEL ??= model
       break
 
